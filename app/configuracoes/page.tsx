@@ -21,14 +21,14 @@ export default function ConfiguracoesPage() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const router = useRouter();
 
-  useEffect(() => {
+    useEffect(() => {
     const auth = getAuth(app);
     const db = getFirestore(app);
 
     // 1. Verifica se tem usuário logado
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        router.push('/login'); // Manda pro login se não tiver logado
+        router.push('/login');
         return;
       }
 
@@ -39,11 +39,24 @@ export default function ConfiguracoesPage() {
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-          // Pegamos o primeiro documento encontrado
-          const userData = querySnapshot.docs[0].data() as UserSubscription;
-          setSubscription(userData);
+          // --- CORREÇÃO AQUI ---
+          // Vamos varrer todos os documentos encontrados para este email.
+          // Se houver algum 'premium', usamos ele. Se não, usamos o primeiro que aparecer.
+          
+          let userDataFound = querySnapshot.docs[0].data() as UserSubscription;
+
+          querySnapshot.docs.forEach((doc) => {
+            const data = doc.data() as UserSubscription;
+            console.log("Documento encontrado:", doc.id, data); // Para debug no console
+
+            // Se encontrarmos um documento Premium, ele ganha prioridade
+            if (data.plan === 'premium') {
+              userDataFound = data;
+            }
+          });
+
+          setSubscription(userDataFound);
         } else {
-          // Usuário logado mas sem registro de compra no banco
           setSubscription(null);
         }
       } catch (error) {
