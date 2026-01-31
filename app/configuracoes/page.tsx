@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-// MUDANÇA 1: Importamos doc e getDoc em vez de query/where
-import { getFirestore, doc, getDoc } from 'firebase/firestore'; 
+// Voltamos a usar query, where e getDocs para buscar por e-mail
+import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'; 
 import { app } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
-import { ExternalLink, RefreshCw } from 'lucide-react'; // Adicionei ícone de refresh
+import { ExternalLink } from 'lucide-react';
 
 interface UserSubscription {
   plan: string;
@@ -32,19 +32,32 @@ export default function ConfiguracoesPage() {
       }
 
       try {
-        console.log("Buscando dados para o usuário:", user.uid);
-        
-        // MUDANÇA 2: Busca DIRETA pelo ID do usuário (Muito mais seguro)
-        // Como o ID do documento é igual ao UID do Auth, pegamos direto.
-        const docRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(docRef);
+        console.log("Buscando assinatura para o email:", user.email);
 
-        if (docSnap.exists()) {
-          const data = docSnap.data() as UserSubscription;
-          console.log("Dados encontrados no Firestore:", data);
-          setSubscription(data);
+        // 1. Busca todos os documentos com esse e-mail
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', user.email));
+        const querySnapshot = await getDocs(q);
+
+        if (!querySnapshot.empty) {
+          // 2. Lógica de Prioridade:
+          // Assume o primeiro documento encontrado como padrão...
+          let finalData = querySnapshot.docs[0].data() as UserSubscription;
+
+          // ...mas percorre todos para ver se existe algum 'premium'
+          querySnapshot.docs.forEach((doc) => {
+            const data = doc.data() as UserSubscription;
+            console.log("Documento encontrado:", doc.id, data.plan);
+            
+            // Se achar um premium, ele ganha prioridade total
+            if (data.plan === 'premium') {
+              finalData = data;
+            }
+          });
+
+          setSubscription(finalData);
         } else {
-          console.log("Documento não encontrado para este UID.");
+          console.log("Nenhum documento encontrado para este email.");
           setSubscription(null);
         }
 
