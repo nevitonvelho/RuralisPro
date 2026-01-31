@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-// Voltamos a usar query, where e getDocs para buscar por e-mail
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'; 
 import { app } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
-import { ExternalLink } from 'lucide-react';
+// Adicionei o ícone 'Mail' para o botão de contato
+import { ExternalLink, Mail } from 'lucide-react';
 
 interface UserSubscription {
   plan: string;
@@ -19,6 +19,7 @@ interface UserSubscription {
 export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null); // Guardar o email para facilitar o corpo da mensagem
   const router = useRouter();
 
   useEffect(() => {
@@ -30,26 +31,21 @@ export default function ConfiguracoesPage() {
         router.push('/login');
         return;
       }
+      
+      setUserEmail(user.email); // Salva o email para usar no mailto
 
       try {
         console.log("Buscando assinatura para o email:", user.email);
 
-        // 1. Busca todos os documentos com esse e-mail
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('email', '==', user.email));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
-          // 2. Lógica de Prioridade:
-          // Assume o primeiro documento encontrado como padrão...
           let finalData = querySnapshot.docs[0].data() as UserSubscription;
 
-          // ...mas percorre todos para ver se existe algum 'premium'
           querySnapshot.docs.forEach((doc) => {
             const data = doc.data() as UserSubscription;
-            console.log("Documento encontrado:", doc.id, data.plan);
-            
-            // Se achar um premium, ele ganha prioridade total
             if (data.plan === 'premium') {
               finalData = data;
             }
@@ -57,7 +53,6 @@ export default function ConfiguracoesPage() {
 
           setSubscription(finalData);
         } else {
-          console.log("Nenhum documento encontrado para este email.");
           setSubscription(null);
         }
 
@@ -126,8 +121,20 @@ export default function ConfiguracoesPage() {
 
         <div className="mt-8 border-t border-slate-100 pt-6">
           {subscription?.plan === 'premium' ? (
-            <div className="flex items-center gap-2 text-slate-500 text-sm">
-              <span>Para gerenciar cobranças, acesse seu e-mail da Kiwify.</span>
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 text-slate-500 text-sm">
+                    <span>Sua assinatura está ativa via Kiwify.</span>
+                </div>
+
+                {/* --- AQUI ESTÁ O BOTÃO DE CANCELAMENTO --- */}
+                {/* Substitua 'suporte@ruralis.com' pelo seu email real */}
+                <a 
+                  href={`mailto:suporte@ruralis.com?subject=Solicitação de Cancelamento - Ruralis PRO&body=Olá, gostaria de solicitar o cancelamento da minha assinatura referente ao email: ${userEmail}`}
+                  className="inline-flex items-center justify-center gap-2 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-all text-sm font-medium w-fit"
+                >
+                  <Mail size={16} />
+                  Solicitar Cancelamento via E-mail
+                </a>
             </div>
           ) : (
             <a 
