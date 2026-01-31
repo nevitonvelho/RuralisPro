@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+// 1. Importamos a Roboto do pacote oficial do Next
+import { Roboto } from "next/font/google"; 
 import "./globals.css";
-import { Providers } from "./providers"; // Importe o arquivo que criamos
+import { Providers } from "./providers";
 import Navbar from "./components/Navbar";
 
-const geistSans = Geist({
+// 2. Configuramos a fonte (pesos, subsets, etc)
+const roboto = Roboto({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  weight: ["100", "300", "400", "500", "700", "900"], // Todos os pesos que você queria
+  variable: "--font-roboto", // Opcional: cria uma variável CSS se precisar
 });
 
 export const metadata: Metadata = {
@@ -21,7 +24,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body className={`${geistSans.variable} font-sans bg-slate-50 text-slate-900 antialiased`}>
+      {/* Removemos os <link> manuais do head, o Next cuida disso agora */}
+      <head />
+      
+      {/* 3. Aplicamos roboto.className no body. 
+          Isso aplica a fonte no site todo automaticamente. */}
+      <body className={`${roboto.className} bg-slate-50 text-slate-900 antialiased`}>
         <Providers>
           <Navbar /> 
           <main className="min-h-[calc(100vh-64px)]">

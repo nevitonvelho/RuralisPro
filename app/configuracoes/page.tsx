@@ -5,8 +5,16 @@ import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'; 
 import { app } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
-// Adicionei o ícone 'Mail' para o botão de contato
-import { ExternalLink, Mail } from 'lucide-react';
+import { 
+  ExternalLink, 
+  Mail, 
+  CreditCard, 
+  Calendar, 
+  ShieldCheck, 
+  Crown, 
+  User, 
+  AlertCircle 
+} from 'lucide-react';
 
 interface UserSubscription {
   plan: string;
@@ -19,7 +27,7 @@ interface UserSubscription {
 export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
-  const [userEmail, setUserEmail] = useState<string | null>(null); // Guardar o email para facilitar o corpo da mensagem
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -32,25 +40,22 @@ export default function ConfiguracoesPage() {
         return;
       }
       
-      setUserEmail(user.email); // Salva o email para usar no mailto
+      setUserEmail(user.email);
 
       try {
-        console.log("Buscando assinatura para o email:", user.email);
-
         const usersRef = collection(db, 'users');
         const q = query(usersRef, where('email', '==', user.email));
         const querySnapshot = await getDocs(q);
 
         if (!querySnapshot.empty) {
           let finalData = querySnapshot.docs[0].data() as UserSubscription;
-
+          // Prioriza o plano premium se houver duplicidade
           querySnapshot.docs.forEach((doc) => {
             const data = doc.data() as UserSubscription;
             if (data.plan === 'premium') {
               finalData = data;
             }
           });
-
           setSubscription(finalData);
         } else {
           setSubscription(null);
@@ -68,95 +73,174 @@ export default function ConfiguracoesPage() {
 
   const formatData = (timestamp: any) => {
     if (!timestamp) return '-';
+    // Suporte para Timestamp do Firestore ou string ISO
     if (timestamp.seconds) {
-      return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR');
+      return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: 'long', year: 'numeric'
+      });
     }
-    return new Date(timestamp).toLocaleDateString('pt-BR');
+    return new Date(timestamp).toLocaleDateString('pt-BR', {
+        day: '2-digit', month: 'long', year: 'numeric'
+    });
   };
 
-  if (loading) return <div className="p-8 text-center">Carregando informações...</div>;
+  const isPremium = subscription?.plan === 'premium';
 
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-8 text-slate-800">Minha Assinatura</h1>
-
-      <div className="bg-white shadow-lg rounded-2xl p-6 border border-slate-100">
-        <div className="flex justify-between items-start mb-6">
-          <div>
-            <h2 className="text-xl font-bold text-slate-800">Plano Atual</h2>
-            <p className="text-slate-500 text-sm">Detalhes da sua conta e acesso</p>
-          </div>
-          
-          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-            subscription?.plan === 'premium' 
-              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
-              : 'bg-slate-100 text-slate-600 border border-slate-200'
-          }`}>
-            {subscription?.plan === 'premium' ? 'Premium Ativo' : 'Plano Gratuito'}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <p className="text-xs font-bold text-slate-400 uppercase mb-1">Nível de Acesso</p>
-            <p className="text-lg font-semibold text-slate-800">
-              {subscription?.plan === 'premium' ? 'Ruralis PRO (Completo)' : 'Acesso Limitado'}
-            </p>
-          </div>
-
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-            <p className="text-xs font-bold text-slate-400 uppercase mb-1">Última Atualização</p>
-            <p className="text-lg font-semibold text-slate-800">
-              {subscription ? formatData(subscription.updatedAt) : '-'}
-            </p>
-          </div>
-          
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-             <p className="text-xs font-bold text-slate-400 uppercase mb-1">Status do Pagamento</p>
-             <p className="text-lg font-semibold text-slate-800 capitalize">
-               {translateStatus(subscription?.status)}
-             </p>
-          </div>
-        </div>
-
-        <div className="mt-8 border-t border-slate-100 pt-6">
-          {subscription?.plan === 'premium' ? (
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2 text-slate-500 text-sm">
-                    <span>Sua assinatura está ativa via Kiwify.</span>
+  // SKELETON LOADER (Visual de carregamento)
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="h-8 w-48 bg-slate-200 rounded animate-pulse mb-8"></div>
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm h-64 animate-pulse">
+            <div className="flex gap-4">
+                <div className="w-16 h-16 bg-slate-200 rounded-full"></div>
+                <div className="space-y-2 flex-1">
+                    <div className="h-4 w-1/3 bg-slate-200 rounded"></div>
+                    <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
                 </div>
-
-                {/* --- AQUI ESTÁ O BOTÃO DE CANCELAMENTO --- */}
-                {/* Substitua 'suporte@ruralis.com' pelo seu email real */}
-                <a 
-                  href={`mailto:suporte@ruralis.com?subject=Solicitação de Cancelamento - Ruralis PRO&body=Olá, gostaria de solicitar o cancelamento da minha assinatura referente ao email: ${userEmail}`}
-                  className="inline-flex items-center justify-center gap-2 border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 hover:text-red-600 hover:border-red-200 transition-all text-sm font-medium w-fit"
-                >
-                  <Mail size={16} />
-                  Solicitar Cancelamento via E-mail
-                </a>
             </div>
-          ) : (
-            <a 
-              href="https://pay.kiwify.com.br/YfRpxeU"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 hover:-translate-y-0.5"
-            >
-              Fazer Upgrade para Premium
-              <ExternalLink size={18} />
-            </a>
-          )}
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto p-6 space-y-8 pb-20">
+      
+      {/* HEADER DA PÁGINA */}
+      <header>
+        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Minha Conta</h1>
+        <p className="text-slate-500 mt-2">Gerencie sua assinatura e detalhes de pagamento.</p>
+      </header>
+
+      {/* CARD PRINCIPAL */}
+      <div className={`relative overflow-hidden rounded-3xl border shadow-lg transition-all ${
+        isPremium 
+          ? 'bg-slate-900 border-slate-800 text-white' 
+          : 'bg-white border-slate-200 text-slate-900'
+      }`}>
+        
+        {/* Efeito de fundo para Premium */}
+        {isPremium && (
+            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        )}
+
+        <div className="relative z-10 p-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
+                <div className="flex items-center gap-4">
+                    <div className={`p-4 rounded-2xl ${isPremium ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-100 text-slate-500'}`}>
+                        {isPremium ? <Crown size={32} strokeWidth={1.5} /> : <User size={32} strokeWidth={1.5} />}
+                    </div>
+                    <div>
+                        <p className={`text-sm font-bold uppercase tracking-wider mb-1 ${isPremium ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            Plano Atual
+                        </p>
+                        <h2 className="text-3xl font-bold leading-none">
+                            {isPremium ? 'Ruralis PRO' : 'Plano Gratuito'}
+                        </h2>
+                    </div>
+                </div>
+
+                <div className={`px-4 py-1.5 rounded-full text-sm font-bold border flex items-center gap-2 ${
+                    subscription?.status === 'active' || subscription?.status === 'paid'
+                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
+                    : 'bg-amber-50 text-amber-600 border-amber-200'
+                }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                        subscription?.status === 'active' || subscription?.status === 'paid' ? 'bg-emerald-500' : 'bg-amber-500'
+                    }`}></span>
+                    {translateStatus(subscription?.status)}
+                </div>
+            </div>
+
+            {/* GRID DE INFORMAÇÕES */}
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-6 rounded-2xl ${isPremium ? 'bg-slate-800/50 border border-slate-700' : 'bg-slate-50 border border-slate-100'}`}>
+                
+                {/* Info 1 */}
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                        <ShieldCheck size={20} />
+                    </div>
+                    <div>
+                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Nível de Acesso</p>
+                        <p className="font-semibold">{isPremium ? 'Completo (Ilimitado)' : 'Restrito'}</p>
+                    </div>
+                </div>
+
+                {/* Info 2 */}
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                        <Calendar size={20} />
+                    </div>
+                    <div>
+                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Última Renovação</p>
+                        <p className="font-semibold">{subscription ? formatData(subscription.updatedAt) : '-'}</p>
+                    </div>
+                </div>
+
+                {/* Info 3 */}
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                        <CreditCard size={20} />
+                    </div>
+                    <div>
+                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Gateway</p>
+                        <p className="font-semibold">Kiwify Secure</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* BOTÕES DE AÇÃO */}
+            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+                {!isPremium ? (
+                     <a 
+                     href="https://pay.kiwify.com.br/YfRpxeU"
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 hover:-translate-y-1 flex items-center justify-center gap-2"
+                   >
+                     Fazer Upgrade Agora
+                     <ExternalLink size={18} />
+                   </a>
+                ) : (
+                    <div className="flex items-center gap-2 text-sm opacity-70">
+                        <AlertCircle size={16} />
+                        <span>Sua assinatura está ativa e operando normalmente.</span>
+                    </div>
+                )}
+            </div>
+        </div>
+      </div>
+
+      {/* ÁREA DE SUPORTE / CANCELAMENTO */}
+      {isPremium && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6">
+            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                Suporte da Assinatura
+            </h3>
+            <p className="text-slate-500 text-sm mb-6 max-w-2xl">
+                Precisa alterar forma de pagamento, emitir nota fiscal ou cancelar sua recorrência? 
+                Nossa equipe de suporte resolve isso diretamente para você para garantir a segurança dos seus dados.
+            </p>
+            
+            <a 
+                href={`mailto:suporte@ruralis.com?subject=Gestão de Assinatura Ruralis PRO&body=Olá, preciso de ajuda com minha assinatura vinculada ao email: ${userEmail}`}
+                className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-200 hover:border-slate-300 px-4 py-2.5 rounded-lg transition-colors bg-slate-50 hover:bg-white"
+            >
+                <Mail size={16} />
+                Entrar em contato com Suporte
+            </a>
+          </div>
+      )}
     </div>
   );
 }
 
+// Função auxiliar de tradução mantida
 function translateStatus(status?: string) {
-  if (!status) return 'Não Assinante';
+  if (!status) return 'Inativo';
   const map: Record<string, string> = {
-    'paid': 'Pago',
+    'paid': 'Ativo',
     'approved': 'Aprovado',
     'active': 'Ativo',
     'past_due': 'Pendente',

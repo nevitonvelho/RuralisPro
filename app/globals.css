@@ -1,9 +1,14 @@
 @import "tailwindcss";
- @plugin "daisyui" {
-    themes: light --default,  --prefersdark;
-    root: ":root";
-    include: ;
-    exclude: ;
-    prefix: ;
-    logs: true;
- }
+@plugin "daisyui" {
+   themes: light --default,  --prefersdark;
+   root: ":root";
+   include: ;
+   exclude: ;
+   prefix: ;
+   logs: true;
+};
+
+
+*{
+     font-family: "Roboto" !important
+}
