@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
+// MUDANÇA 1: Importamos doc e getDoc em vez de query/where
+import { getFirestore, doc, getDoc } from 'firebase/firestore'; 
 import { app } from '@/lib/firebase'; 
 import { useRouter } from 'next/navigation';
-import { ExternalLink } from 'lucide-react'; // Adicionei para o ícone do botão
+import { ExternalLink, RefreshCw } from 'lucide-react'; // Adicionei ícone de refresh
 
-// Definição do tipo de dados que esperamos do banco
 interface UserSubscription {
   plan: string;
   status: string;
@@ -21,11 +21,10 @@ export default function ConfiguracoesPage() {
   const [subscription, setSubscription] = useState<UserSubscription | null>(null);
   const router = useRouter();
 
-    useEffect(() => {
+  useEffect(() => {
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // 1. Verifica se tem usuário logado
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         router.push('/login');
@@ -33,32 +32,22 @@ export default function ConfiguracoesPage() {
       }
 
       try {
-        // 2. Busca no Firestore pelo Email do usuário logado
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef, where('email', '==', user.email));
-        const querySnapshot = await getDocs(q);
+        console.log("Buscando dados para o usuário:", user.uid);
+        
+        // MUDANÇA 2: Busca DIRETA pelo ID do usuário (Muito mais seguro)
+        // Como o ID do documento é igual ao UID do Auth, pegamos direto.
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
 
-        if (!querySnapshot.empty) {
-          // --- CORREÇÃO AQUI ---
-          // Vamos varrer todos os documentos encontrados para este email.
-          // Se houver algum 'premium', usamos ele. Se não, usamos o primeiro que aparecer.
-          
-          let userDataFound = querySnapshot.docs[0].data() as UserSubscription;
-
-          querySnapshot.docs.forEach((doc) => {
-            const data = doc.data() as UserSubscription;
-            console.log("Documento encontrado:", doc.id, data); // Para debug no console
-
-            // Se encontrarmos um documento Premium, ele ganha prioridade
-            if (data.plan === 'premium') {
-              userDataFound = data;
-            }
-          });
-
-          setSubscription(userDataFound);
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserSubscription;
+          console.log("Dados encontrados no Firestore:", data);
+          setSubscription(data);
         } else {
+          console.log("Documento não encontrado para este UID.");
           setSubscription(null);
         }
+
       } catch (error) {
         console.error("Erro ao buscar assinatura:", error);
       } finally {
@@ -69,18 +58,14 @@ export default function ConfiguracoesPage() {
     return () => unsubscribe();
   }, [router]);
 
-  // Função para formatar data (Firestore Timestamp para texto)
   const formatData = (timestamp: any) => {
     if (!timestamp) return '-';
-    // Se for Timestamp do Firestore
     if (timestamp.seconds) {
       return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR');
     }
-    // Se for string ou Date normal
     return new Date(timestamp).toLocaleDateString('pt-BR');
   };
 
-  // Renderização
   if (loading) return <div className="p-8 text-center">Carregando informações...</div>;
 
   return (
@@ -94,7 +79,6 @@ export default function ConfiguracoesPage() {
             <p className="text-slate-500 text-sm">Detalhes da sua conta e acesso</p>
           </div>
           
-          {/* Badge de Status */}
           <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
             subscription?.plan === 'premium' 
               ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
@@ -105,7 +89,6 @@ export default function ConfiguracoesPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Detalhe 1: Tipo de Plano */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
             <p className="text-xs font-bold text-slate-400 uppercase mb-1">Nível de Acesso</p>
             <p className="text-lg font-semibold text-slate-800">
@@ -113,7 +96,6 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
 
-          {/* Detalhe 2: Última Atualização/Renovação */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
             <p className="text-xs font-bold text-slate-400 uppercase mb-1">Última Atualização</p>
             <p className="text-lg font-semibold text-slate-800">
@@ -121,7 +103,6 @@ export default function ConfiguracoesPage() {
             </p>
           </div>
           
-          {/* Detalhe 3: Status Financeiro */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
              <p className="text-xs font-bold text-slate-400 uppercase mb-1">Status do Pagamento</p>
              <p className="text-lg font-semibold text-slate-800 capitalize">
@@ -130,14 +111,12 @@ export default function ConfiguracoesPage() {
           </div>
         </div>
 
-        {/* Botão de Ação */}
         <div className="mt-8 border-t border-slate-100 pt-6">
           {subscription?.plan === 'premium' ? (
             <div className="flex items-center gap-2 text-slate-500 text-sm">
               <span>Para gerenciar cobranças, acesse seu e-mail da Kiwify.</span>
             </div>
           ) : (
-            // AQUI ESTÁ O LINK QUE VOCÊ PEDIU
             <a 
               href="https://pay.kiwify.com.br/YfRpxeU"
               target="_blank"
@@ -154,7 +133,6 @@ export default function ConfiguracoesPage() {
   );
 }
 
-// Helper simples de tradução
 function translateStatus(status?: string) {
   if (!status) return 'Não Assinante';
   const map: Record<string, string> = {
