@@ -7,15 +7,25 @@ import {
   Coins, 
   ArrowRight, 
   Lock, 
-  ArrowDown,
   Info,
   Flame
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { CalculatorLayout } from "@/app/components/CalculatorLayout";
 
+// Interface para tipagem correta
+interface InputGroupProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string | number;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  step?: string;
+  suffix?: string;
+}
+
 // Input Padronizado
-const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: any) => (
+const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: InputGroupProps) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
       {label}
@@ -66,11 +76,20 @@ export default function DescontoUmidadePage() {
     const taxa = Number(taxaSecagem) || 0; // R$/ton
     const preco = Number(precoSaca) || 0;
 
-    if (peso === 0) return { pesoLiquido: 0, quebraKg: 0, custoSecagemTotal: 0, perdaTotalFinanceira: 0, precoRealSaca: 0 };
+    // CORREÇÃO: As chaves retornadas aqui devem ser IDÊNTICAS às do return final
+    if (peso === 0) {
+        return { 
+            pesoLiquidoTecnico: 0, // Corrigido de 'pesoLiquido' para 'pesoLiquidoTecnico'
+            quebraKg: 0, 
+            custoSecagemTotal: 0, 
+            perdaTotalFinanceira: 0, 
+            precoRealSaca: 0,
+            percentualQuebra: 0 // Adicionado pois faltava
+        };
+    }
 
     // 1. Cálculo da Quebra Técnica (Fórmula de Balanço de Massa)
     // Pf = Pi * ((100 - Ui) / (100 - Up))
-    // Se Ui <= Up, não há desconto de umidade (geralmente não bonificam acima)
     let pesoLiquidoTecnico = peso;
     
     if (ui > up) {
@@ -85,8 +104,6 @@ export default function DescontoUmidadePage() {
     const custoSecagemTotal = toneladasEntrada * taxa;
 
     // 3. Conversão Financeira da Quebra
-    // Quantos R$ perdi de produto que "evaporou"?
-    // Peso perdido em sacas * Preço
     const sacasPerdidas = quebraKg / 60;
     const valorQuebraTecnica = sacasPerdidas * preco;
 
@@ -94,7 +111,6 @@ export default function DescontoUmidadePage() {
     const perdaTotalFinanceira = valorQuebraTecnica + custoSecagemTotal;
 
     // 5. Preço Real da Saca Úmida (Netback)
-    // Receita Bruta Teórica (se fosse seco)
     const sacasBrutas = peso / 60;
     const receitaTeorica = sacasBrutas * preco;
     
@@ -114,7 +130,6 @@ export default function DescontoUmidadePage() {
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(v);
-  const fmtDec = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(v);
   const fmtPct = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(v) + '%';
 
   const shareText = `💧 *Desconto de Umidade - ${talhao || 'Carga'}*\n\n📉 *Entrada:* ${fmtNum(Number(pesoBruto))} kg (${umidadeAtual}%)\n✅ *Líquido:* ${fmtNum(resultados.pesoLiquidoTecnico)} kg (${umidadePadrao}%)\n\n💸 *Desconto Peso:* ${fmtNum(resultados.quebraKg)} kg\n🔥 *Custo Secagem:* ${fmtMoeda(resultados.custoSecagemTotal)}\n\n(Total descontado: ${fmtMoeda(resultados.perdaTotalFinanceira)})`;

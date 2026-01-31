@@ -16,8 +16,19 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { CalculatorLayout } from "@/app/components/CalculatorLayout";
 
+// Interface para tipagem
+interface InputGroupProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string | number;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  step?: string;
+  suffix?: string;
+}
+
 // Input Padronizado
-const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: any) => (
+const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: InputGroupProps) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
       {label}
@@ -69,7 +80,15 @@ export default function TaxaLotacaoPage() {
     const ha = Number(area) || 0;
     const meta = Number(capacidadeSuporte) || 1;
 
-    if (ha === 0) return { uaTotal: 0, uaHa: 0, kgHa: 0, diff: 0, status: 'neutral' };
+    // CORREÇÃO: Adicionada a propriedade 'meta' aqui para evitar erro de undefined na renderização
+    if (ha === 0) return { 
+        uaTotal: 0, 
+        uaHa: 0, 
+        kgHa: 0, 
+        diff: 0, 
+        status: 'neutral', 
+        meta: meta 
+    };
 
     // 1. Peso Total do Rebanho
     const pesoTotal = qtd * peso;

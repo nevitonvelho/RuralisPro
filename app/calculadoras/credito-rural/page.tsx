@@ -14,8 +14,19 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { CalculatorLayout } from "@/app/components/CalculatorLayout";
 
-// Input Padronizado
-const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.01", suffix }: any) => (
+// Interface para tipagem correta das props
+interface InputGroupProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string | number;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  step?: string;
+  suffix?: string;
+}
+
+// Input Padronizado com tipagem
+const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.01", suffix }: InputGroupProps) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
       {label}
@@ -68,9 +79,19 @@ export default function CreditoRuralPage() {
     const taxasExtrasPct = Number(taxasAdicionais) || 0;
     const preco = Number(precoSacaFuturo) || 0;
 
-    if (principal === 0) return { montanteFinal: 0, jurosNominal: 0, custoTotalExtras: 0, sacasParaQuitar: 0, cet: 0 };
+    // CORREÇÃO AQUI: Adicionado 'custoEmSacas: 0' para igualar o tipo de retorno
+    if (principal === 0) {
+        return { 
+            montanteFinal: 0, 
+            jurosNominal: 0, 
+            custoTotalExtras: 0, 
+            sacasParaQuitar: 0, 
+            custoEmSacas: 0, // Faltava essa propriedade aqui
+            cet: 0 
+        };
+    }
 
-    // 1. Cálculo de Juros (Juros Simples pro Custeio/Curto Prazo é comum, mas faremos Composto para precisão)
+    // 1. Cálculo de Juros
     // Taxa mensal equivalente
     const taxaMensal = Math.pow(1 + (jurosAA / 100), 1/12) - 1;
     
@@ -82,7 +103,6 @@ export default function CreditoRuralPage() {
     const custoTotalExtras = principal * (taxasExtrasPct / 100);
 
     // 3. Montante Final a Pagar (Principal + Juros + Taxas)
-    // *Nota: Em alguns bancos as taxas são descontadas na liberação, mas aqui somamos para ver o CUSTO total
     const montanteFinal = principal + jurosNominal + custoTotalExtras;
 
     // 4. Equivalência em Sacas

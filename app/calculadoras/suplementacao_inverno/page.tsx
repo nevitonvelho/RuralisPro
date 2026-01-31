@@ -15,8 +15,19 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { CalculatorLayout } from "@/app/components/CalculatorLayout";
 
+// Interface para tipagem
+interface InputGroupProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string | number;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  step?: string;
+  suffix?: string;
+}
+
 // Input Padronizado
-const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.01", suffix }: any) => (
+const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.01", suffix }: InputGroupProps) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
       {label}
@@ -59,7 +70,6 @@ export default function SuplementacaoInvernoPage() {
   const [pesoSaco, setPesoSaco] = useState<number | string>(30); // kg (Padrão 30kg)
   
   // ESTRATÉGIA (Consumo)
-  // Pode ser fixo (g/cab) ou % do Peso Vivo
   const [consumoAlvo, setConsumoAlvo] = useState<number | string>(""); // gramas/dia por cabeça
   const [tipoEstrategia, setTipoEstrategia] = useState<"ureia" | "01" | "03" | "custom">("custom");
 
@@ -87,7 +97,16 @@ export default function SuplementacaoInvernoPage() {
     const prcSaco = Number(precoSaco) || 0;
     const kgSaco = Number(pesoSaco) || 30;
 
-    if (consDia === 0 || kgSaco === 0) return { custoDia: 0, custoMes: 0, sacosMes: 0, custoTotalSeca: 0 };
+    // CORREÇÃO: O objeto retornado aqui deve ter as MESMAS chaves do retorno final
+    if (consDia === 0 || kgSaco === 0) {
+        return { 
+            custoDia: 0, 
+            custoMes: 0, 
+            sacosMes: 0, 
+            custoTotalSeca: 0,
+            consumoLoteMesKg: 0 // Adicionado pois faltava
+        };
+    }
 
     // 1. Preço por kg do suplemento
     const precoKg = prcSaco / kgSaco;

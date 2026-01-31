@@ -16,8 +16,19 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { CalculatorLayout } from "@/app/components/CalculatorLayout";
 
-// Input Padronizado
-const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: any) => (
+// Interface para as props do InputGroup
+interface InputGroupProps {
+  label: string;
+  icon: React.ReactNode;
+  value: string | number;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  step?: string;
+  suffix?: string;
+}
+
+// Input Padronizado com tipagem
+const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step="0.1", suffix }: InputGroupProps) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1.5">
       {label}
@@ -68,12 +79,24 @@ export default function CombustivelMaquinarioPage() {
     const preco = Number(precoDiesel) || 0;
     const meta = Number(metaConsumo) || 0;
 
-    if (area === 0 || litros === 0) return { l_ha: 0, l_h: 0, ha_h: 0, custoHa: 0, totalGasto: 0, desvio: 0, status: 'neutral' };
+    // CORREÇÃO AQUI: Adicionado 'meta: 0' para manter consistência do tipo de retorno
+    if (area === 0 || litros === 0) {
+        return { 
+            l_ha: 0, 
+            l_h: 0, 
+            ha_h: 0, 
+            custoHa: 0, 
+            totalGasto: 0, 
+            desvio: 0, 
+            status: 'neutral',
+            meta: 0 
+        };
+    }
 
-    // 1. Eficiência de Combustível (Consumo por Área) - O mais importante agronomicamente
+    // 1. Eficiência de Combustível (Consumo por Área)
     const l_ha = litros / area;
 
-    // 2. Consumo Horário (Consumo por Tempo) - Importante para manutenção
+    // 2. Consumo Horário (Consumo por Tempo)
     const l_h = horas > 0 ? litros / horas : 0;
 
     // 3. Capacidade Operacional (Rendimento)
@@ -83,12 +106,12 @@ export default function CombustivelMaquinarioPage() {
     const totalGasto = litros * preco;
     const custoHa = totalGasto / area;
 
-    // 5. Comparativo com Meta (Se houver)
+    // 5. Comparativo com Meta
     let desvio = 0;
     let status = 'neutral';
     
     if (meta > 0) {
-        desvio = l_ha - meta; // Positivo = Gastou mais (Ruim). Negativo = Economizou (Bom).
+        desvio = l_ha - meta; // Positivo = Gastou mais. Negativo = Economizou.
         if (desvio > 0) status = 'ruim';
         else if (desvio <= 0) status = 'bom';
     }
