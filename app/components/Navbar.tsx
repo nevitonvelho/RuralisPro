@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Leaf as LeafIcon, Menu, User, Mail, Lock, X, UserPlus } from "lucide-react";
+import Link from "next/link"; // <--- 1. Importação do Link adicionada
+import { Search, Leaf as LeafIcon, Menu, User, Mail, Lock, X, UserPlus, Settings } from "lucide-react"; // Adicionei o ícone Settings opcional
 import { useAuth } from "@/context/AuthContext";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
 export default function Navbar() {
   const { user } = useAuth();
-  const [isLoginTab, setIsLoginTab] = useState(true); // Controla se mostra Login ou Cadastro
+  const [isLoginTab, setIsLoginTab] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -59,15 +60,32 @@ export default function Navbar() {
         {/* AUTH SECTION */}
         <nav className="flex items-center gap-3">
           {user ? (
+            // --- ÁREA DO USUÁRIO LOGADO (ALTERADA) ---
             <div className="flex items-center gap-3">
               <div className="hidden sm:block text-right leading-tight">
                 <p className="text-xs font-bold text-slate-800">{user.email}</p>
-                <button onClick={() => signOut(auth)} className="text-[10px] text-red-500 font-bold hover:underline">SAIR</button>
+                <div className="flex items-center justify-end gap-2">
+                  <Link 
+                    href="/configuracoes" 
+                    className="text-[10px] text-emerald-600 font-bold hover:underline flex items-center gap-1"
+                  >
+                    MINHA CONTA
+                  </Link>
+                  <span className="text-[10px] text-slate-300">|</span>
+                  <button onClick={() => signOut(auth)} className="text-[10px] text-red-500 font-bold hover:underline">
+                    SAIR
+                  </button>
+                </div>
               </div>
-              <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold border-2 border-emerald-500/20">
-                {user.email?.charAt(0).toUpperCase()}
-              </div>
+              
+              {/* O Avatar agora é um Link clicável */}
+              <Link href="/configuracoes">
+                <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold border-2 border-emerald-500/20 hover:border-emerald-500 hover:shadow-md transition-all cursor-pointer" title="Ir para Configurações">
+                  {user.email?.charAt(0).toUpperCase()}
+                </div>
+              </Link>
             </div>
+            // -----------------------------------------
           ) : (
             <div className="flex items-center gap-2">
               <button 
@@ -91,11 +109,10 @@ export default function Navbar() {
         </nav>
       </div>
 
-      {/* MODAL DE AUTENTICAÇÃO (LOGIN / REGISTRO) */}
+      {/* MODAL DE AUTENTICAÇÃO */}
       <dialog id="modal_auth" className="modal modal-bottom sm:modal-middle">
         <div className="modal-box p-0 bg-white overflow-hidden border-none shadow-2xl max-w-md">
           
-          {/* HEADER DO MODAL */}
           <div className="bg-emerald-600 p-8 text-white relative">
             <form method="dialog">
               <button className="absolute right-4 top-4 p-2 hover:bg-white/20 rounded-full transition-colors">
@@ -110,7 +127,6 @@ export default function Navbar() {
             </p>
           </div>
 
-          {/* FORMULÁRIO */}
           <form onSubmit={handleSubmit} className="p-8 space-y-4">
             {error && <div className="p-3 bg-red-50 text-red-600 text-xs font-bold rounded-xl border border-red-100">{error}</div>}
             

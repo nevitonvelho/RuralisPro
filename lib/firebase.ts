@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore"; // Adicionei isso
 import { getAnalytics, isSupported } from "firebase/analytics";
 
 const firebaseConfig = {
@@ -12,11 +13,14 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// Inicializa o Firebase (Singleton pattern)
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+// 1. Inicializa o App (Adicionei o 'export' aqui)
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
-// Inicializa o Auth
+// 2. Inicializa o Auth
 export const auth = getAuth(app);
 
-// Inicializa o Analytics apenas se estiver no navegador
+// 3. Inicializa o Firestore (Adicionei isso para facilitar)
+export const db = getFirestore(app);
+
+// 4. Inicializa o Analytics (Só no navegador)
 export const analytics = typeof window !== "undefined" ? isSupported().then(yes => yes ? getAnalytics(app) : null) : null;
