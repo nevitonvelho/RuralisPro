@@ -7,13 +7,11 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const db = getFirestore();
-
-    // Build phase → ignora
     if (!db) {
       return NextResponse.json({ build: true });
     }
 
-    // 1. Segurança do token
+    // 🔐 Segurança do token
     const url = new URL(req.url);
     const secretToken = url.searchParams.get('token');
 
@@ -23,41 +21,57 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // 2. Status do pedido
+    // 📌 Aceita apenas pagamento aprovado
     if (body.order_status !== 'paid' && body.order_status !== 'approved') {
       return NextResponse.json({ message: 'Status ignorado' });
     }
 
-    const customerEmail = body.customer_email;
+    // ✅ CAMPOS CORRETOS DA KIWIFY
+    const customerEmail = body?.Customer?.email;
+    const customerName = body?.Customer?.full_name;
+    const orderId = body?.order_id;
+    const subscriptionId = body?.subscription_id ?? null;
 
-    // 3. Busca/criação do usuário
+    // 🚨 Validação obrigatória
+    if (!customerEmail || !orderId) {
+      console.error('Webhook inválido:', body);
+      return NextResponse.json(
+        { error: 'Dados obrigatórios ausentes' },
+        { status: 400 }
+      );
+    }
+
     const usersRef = db.collection('users');
     const snapshot = await usersRef.where('email', '==', customerEmail).get();
 
     if (snapshot.empty) {
+      // 🆕 Usuário novo
       await usersRef.add({
         email: customerEmail,
-        name: body.customer_name || 'Novo Usuário',
-        createdAt: new Date(),
+        name: customerName ?? 'Novo Usuário',
         plan: 'premium',
-        kiwify_order_id: body.order_id,
+        createdAt: new Date(),
+        kiwify_order_id: orderId,
+        subscription_id: subscriptionId,
       });
 
-      console.log(`Usuário criado via Webhook: ${customerEmail}`);
+      console.log(`Usuário criado via webhook: ${customerEmail}`);
     } else {
       const userDoc = snapshot.docs[0];
 
-      if (userDoc.data().kiwify_order_id === body.order_id) {
+      // 🛑 Evita processar o mesmo pedido duas vezes
+      if (userDoc.data().kiwify_order_id === orderId) {
         return NextResponse.json({ message: 'Pedido já processado' });
       }
 
       await userDoc.ref.update({
         plan: 'premium',
         updatedAt: new Date(),
-        kiwify_order_id: body.order_id,
+        kiwify_order_id: orderId,
+        subscription_id: subscriptionId,
       });
 
-      console.log(`Usuário atualizado via Webhook: ${customerEmail}`);
+      console.log(`Usuário atualizado via webhook: ${customerEmail}`);
     }
 
     return NextResponse.json({ received: true });
