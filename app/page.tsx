@@ -1,65 +1,128 @@
-import Image from "next/image";
+import { 
+  Sprout, 
+  Beef, 
+  Tractor, 
+  Droplets, 
+  Microscope, 
+  TrendingUp, 
+  Scale, 
+  Zap, 
+  Boxes,
+  ThermometerSun,
+  ArrowRight
+} from "lucide-react";
 
 export default function Home() {
+  const categorias = [
+    {
+      titulo: "Agronomia",
+      cor: "text-emerald-600",
+      bg: "bg-emerald-50",
+      icon: <Sprout size={24} />,
+      calcs: [
+        "Calagem e Gessagem",
+        "Adubação N-P-K",
+        "População de Plantas",
+        "Estimativa de Produtividade",
+        "Perda na Colheita",
+        "Depleção de Água no Solo"
+      ]
+    },
+    {
+      titulo: "Pecuária & Zootecnia",
+      cor: "text-amber-700",
+      bg: "bg-amber-50",
+      icon: <Beef size={24} />,
+      calcs: [
+        "Conversão Alimentar (GMD)",
+        "Custo da Arroba Produzida",
+        "Taxa de Lotação (UA/ha)",
+        "Suplementação de Inverno",
+        "Formulação de Rações",
+        "Rendimento de Carcaça"
+      ]
+    },
+    {
+      titulo: "Máquinas & Engenharia",
+      cor: "text-blue-600",
+      bg: "bg-blue-50",
+      icon: <Tractor size={24} />,
+      calcs: [
+        "Consumo de Combustível",
+        "Capacidade Operacional",
+        "Patinagem de Pneus",
+        "Regulagem de Pulverizador",
+        "Dimensionamento de Silos",
+        "Eficiência de Irrigação"
+      ]
+    },
+    {
+      titulo: "Gestão & Mercado",
+      cor: "text-slate-700",
+      bg: "bg-slate-100",
+      icon: <TrendingUp size={24} />,
+      calcs: [
+        "ROI por Cultura",
+        "Ponto de Equilíbrio",
+        "Conversão de Medidas",
+        "Frete Agrícola",
+        "Desconto de Umidade/Impureza",
+        "Viabilidade de Crédito Rural"
+      ]
+    }
+  ];
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="space-y-16 pb-20">
+      {/* HERO SECTION */}
+      <section className="text-center pt-10 px-4">
+        <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight mb-6">
+          A caixa de ferramentas do <br/>
+          <span className="text-emerald-600">produtor moderno.</span>
+        </h1>
+        <p className="text-lg text-slate-500 max-w-2xl mx-auto">
+          Acesse gratuitamente mais de 20 calculadoras técnicas para otimizar 
+          sua produção, do plantio à comercialização.
+        </p>
+      </section>
+
+      {/* GRID DE CATEGORIAS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4">
+        {categorias.map((cat, i) => (
+          <div key={i} className="flex flex-col">
+            <div className="flex items-center gap-3 mb-6">
+              <div className={`p-3 rounded-2xl ${cat.bg} ${cat.cor}`}>
+                {cat.icon}
+              </div>
+              <h3 className="font-bold text-xl text-slate-800">{cat.titulo}</h3>
+            </div>
+            
+            <ul className="space-y-3">
+              {cat.calcs.map((calc, j) => (
+                <li key={j}>
+                  <a href="#" className="group flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md hover:border-emerald-200 transition-all">
+                    <span className="text-sm font-semibold text-slate-600 group-hover:text-emerald-700">
+                      {calc}
+                    </span>
+                    <ArrowRight size={14} className="text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+
+      {/* CALL TO ACTION PARA CONTATO/SUGESTÃO */}
+      <section className="bg-emerald-900 rounded-[32px] p-10 mx-4 text-center text-white">
+        <h2 className="text-2xl font-bold mb-4">Sentiu falta de alguma calculadora?</h2>
+        <p className="text-emerald-100 mb-6 max-w-md mx-auto">
+          Nosso portal é colaborativo. Sugira uma nova ferramenta técnica e ajude a fortalecer o agro.
+        </p>
+        <button className="bg-emerald-400 text-emerald-950 px-8 py-3 rounded-full font-bold hover:bg-white transition-colors">
+          Sugerir Calculadora
+        </button>
+      </section>
     </div>
   );
 }
