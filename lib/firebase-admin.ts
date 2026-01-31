@@ -1,31 +1,39 @@
 import * as admin from 'firebase-admin';
 
-// Verifica se já existe uma instância para não criar duplicada (Singleton)
-if (!admin.apps.length) {
-  
-  // 1. Pega a chave
-  const rawKey = process.env.FIREBASE_PRIVATE_KEY;
+let app: admin.app.App | null = null;
 
-  // 2. TRATAMENTO BLINDADO:
-  // - .replace(/\\n/g, '\n') -> Arruma as quebras de linha
-  // - .replace(/"/g, '')     -> Remove TODAS as aspas (resolve o erro Invalid PEM)
-  const privateKey = rawKey
-    ? rawKey.replace(/\\n/g, '\n').replace(/"/g, '')
-    : undefined;
-
-  if (!privateKey) {
-    console.error('❌ ERRO CRÍTICO: FIREBASE_PRIVATE_KEY não foi encontrada ou está vazia.');
+export function getFirestore() {
+  // 🔥 NÃO inicializa Firebase durante o build
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return null;
   }
 
-  admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: privateKey,
-    }),
-  });
+  if (!admin.apps.length) {
+    const base64Key = process.env.FIREBASE_PRIVATE_KEY_BASE64;
+
+    if (!base64Key) {
+      throw new Error('FIREBASE_PRIVATE_KEY_BASE64 ausente');
+    }
+
+    // ✅ Decodifica Base64 → PEM válido
+    const privateKey = Buffer
+      .from(base64Key, 'base64')
+      .toString('utf-8')
+      .trim();
+
+    // 🧪 Diagnóstico de segurança (pode remover depois)
+    if (!privateKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+      throw new Error('Private key decodificada não é PEM válida');
+    }
+
+    app = admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID!,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+        privateKey,
+      }),
+    });
+  }
+
+  return admin.firestore();
 }
-
-const db = admin.firestore();
-
-export { db };
