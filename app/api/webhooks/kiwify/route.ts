@@ -5,44 +5,45 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  console.log('🔥 WEBHOOK KIWIFY CHEGOU');
+
   try {
-    const db = getFirestore();
-    if (!db) {
-      return NextResponse.json({ build: true });
-    }
-
-    // 🔐 Segurança do token
+    // 🔐 Token de segurança
     const url = new URL(req.url);
-    const secretToken = url.searchParams.get('token');
+    const token = url.searchParams.get('token');
 
-    if (secretToken !== process.env.KIWIFY_WEBHOOK_SECRET) {
-      return NextResponse.json({ message: 'Não autorizado' }, { status: 401 });
+    if (token !== process.env.KIWIFY_WEBHOOK_SECRET) {
+      console.log('❌ Token inválido');
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     }
 
     const body = await req.json();
+    console.log('📦 Payload recebido');
 
     // 📌 Aceita apenas pagamento aprovado
     if (body.order_status !== 'paid' && body.order_status !== 'approved') {
-      return NextResponse.json({ message: 'Status ignorado' });
+      console.log('ℹ️ Status ignorado:', body.order_status);
+      return NextResponse.json({ ignored: true });
     }
 
-    // ✅ CAMPOS CORRETOS DA KIWIFY
+    // ✅ CAMPOS REAIS DA KIWIFY
     const customerEmail = body?.Customer?.email;
     const customerName = body?.Customer?.full_name;
     const orderId = body?.order_id;
     const subscriptionId = body?.subscription_id ?? null;
 
-    // 🚨 Validação obrigatória
     if (!customerEmail || !orderId) {
-      console.error('Webhook inválido:', body);
-      return NextResponse.json(
-        { error: 'Dados obrigatórios ausentes' },
-        { status: 400 }
-      );
+      console.error('❌ Dados obrigatórios ausentes', body);
+      return NextResponse.json({ error: 'Payload inválido' }, { status: 400 });
     }
 
+    const db = getFirestore();
     const usersRef = db.collection('users');
-    const snapshot = await usersRef.where('email', '==', customerEmail).get();
+
+    const snapshot = await usersRef
+      .where('email', '==', customerEmail)
+      .limit(1)
+      .get();
 
     if (snapshot.empty) {
       // 🆕 Usuário novo
@@ -55,13 +56,13 @@ export async function POST(req: Request) {
         subscription_id: subscriptionId,
       });
 
-      console.log(`Usuário criado via webhook: ${customerEmail}`);
+      console.log('✅ Usuário criado:', customerEmail);
     } else {
       const userDoc = snapshot.docs[0];
 
-      // 🛑 Evita processar o mesmo pedido duas vezes
       if (userDoc.data().kiwify_order_id === orderId) {
-        return NextResponse.json({ message: 'Pedido já processado' });
+        console.log('🔁 Pedido já processado');
+        return NextResponse.json({ duplicated: true });
       }
 
       await userDoc.ref.update({
@@ -71,13 +72,13 @@ export async function POST(req: Request) {
         subscription_id: subscriptionId,
       });
 
-      console.log(`Usuário atualizado via webhook: ${customerEmail}`);
+      console.log('🔄 Usuário atualizado:', customerEmail);
     }
 
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ success: true });
 
   } catch (err) {
-    console.error('Erro no Webhook:', err);
+    console.error('💥 Erro no Webhook:', err);
     return NextResponse.json({ error: 'Webhook Error' }, { status: 500 });
   }
 }
