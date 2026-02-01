@@ -34,7 +34,7 @@ export default function RootLayout({
           <div className="no-print">
             <Navbar />
           </div>
-          <main className="min-h-[calc(100vh-64px)]">
+          <main className="min-h-[calc(100vh-64px)] pt-20">
             {children}
           </main>
           <footer className="bg-white border-t border-slate-200 py-10">
