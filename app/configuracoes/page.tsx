@@ -13,7 +13,9 @@ import {
   ShieldCheck, 
   Crown, 
   User, 
-  AlertCircle 
+  CheckCircle2,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
 interface UserSubscription {
@@ -49,7 +51,7 @@ export default function ConfiguracoesPage() {
 
         if (!querySnapshot.empty) {
           let finalData = querySnapshot.docs[0].data() as UserSubscription;
-          // Prioriza o plano premium se houver duplicidade
+          // Prioriza o plano premium se houver duplicidade nos documentos
           querySnapshot.docs.forEach((doc) => {
             const data = doc.data() as UserSubscription;
             if (data.plan === 'premium') {
@@ -73,7 +75,6 @@ export default function ConfiguracoesPage() {
 
   const formatData = (timestamp: any) => {
     if (!timestamp) return '-';
-    // Suporte para Timestamp do Firestore ou string ISO
     if (timestamp.seconds) {
       return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR', {
         day: '2-digit', month: 'long', year: 'numeric'
@@ -86,18 +87,26 @@ export default function ConfiguracoesPage() {
 
   const isPremium = subscription?.plan === 'premium';
 
-  // SKELETON LOADER (Visual de carregamento)
+  // --- SKELETON LOADER (Refinado para não dar "pulo" na tela) ---
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
-        <div className="h-8 w-48 bg-slate-200 rounded animate-pulse mb-8"></div>
-        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm h-64 animate-pulse">
-            <div className="flex gap-4">
-                <div className="w-16 h-16 bg-slate-200 rounded-full"></div>
-                <div className="space-y-2 flex-1">
-                    <div className="h-4 w-1/3 bg-slate-200 rounded"></div>
-                    <div className="h-4 w-1/4 bg-slate-200 rounded"></div>
+      <div className="max-w-5xl mx-auto p-6 space-y-8 animate-in fade-in duration-500">
+        <div className="space-y-2">
+            <div className="h-8 w-48 bg-slate-200 rounded-lg animate-pulse"></div>
+            <div className="h-4 w-64 bg-slate-100 rounded-lg animate-pulse"></div>
+        </div>
+        <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm h-[300px] animate-pulse relative overflow-hidden">
+            <div className="flex gap-6 items-center mb-8">
+                <div className="w-16 h-16 bg-slate-200 rounded-2xl"></div>
+                <div className="space-y-3 flex-1">
+                    <div className="h-4 w-32 bg-slate-200 rounded"></div>
+                    <div className="h-8 w-64 bg-slate-200 rounded"></div>
                 </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-8">
+                <div className="h-20 bg-slate-50 rounded-xl"></div>
+                <div className="h-20 bg-slate-50 rounded-xl"></div>
+                <div className="h-20 bg-slate-50 rounded-xl"></div>
             </div>
         </div>
       </div>
@@ -105,145 +114,186 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto p-6 space-y-8 pb-24 animate-in slide-in-from-bottom-4 duration-500">
       
-      {/* HEADER DA PÁGINA */}
-      <header>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Minha Conta</h1>
-        <p className="text-slate-500 mt-2">Gerencie sua assinatura e detalhes de pagamento.</p>
+      {/* HEADER */}
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Minha Assinatura</h1>
+            <p className="text-slate-500 mt-2 font-medium">Gerencie seu plano e detalhes de acesso.</p>
+        </div>
+        {!isPremium && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 text-xs font-bold uppercase tracking-wider rounded-full border border-amber-100">
+                <Sparkles size={14} />
+                Plano Gratuito
+            </div>
+        )}
       </header>
 
       {/* CARD PRINCIPAL */}
-      <div className={`relative overflow-hidden rounded-3xl border shadow-lg transition-all ${
+      <div className={`relative overflow-hidden rounded-3xl border shadow-xl transition-all duration-300 group ${
         isPremium 
           ? 'bg-slate-900 border-slate-800 text-white' 
           : 'bg-white border-slate-200 text-slate-900'
       }`}>
         
-        {/* Efeito de fundo para Premium */}
-        {isPremium && (
-            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+        {/* EFEITOS DE FUNDO (Background Blur/Glow) */}
+        {isPremium ? (
+            <>
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[100px] -mr-40 -mt-40 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] -ml-20 -mb-20 pointer-events-none"></div>
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
+            </>
+        ) : (
+            <div className="absolute top-0 right-0 w-64 h-64 bg-slate-100 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none opacity-60"></div>
         )}
 
-        <div className="relative z-10 p-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8">
-                <div className="flex items-center gap-4">
-                    <div className={`p-4 rounded-2xl ${isPremium ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-100 text-slate-500'}`}>
+        <div className="relative z-10 p-8 sm:p-10">
+            {/* CABEÇALHO DO CARD */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+                <div className="flex items-center gap-5">
+                    <div className={`p-4 rounded-2xl shadow-inner ${
+                        isPremium 
+                        ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-900/20 ring-4 ring-emerald-500/10' 
+                        : 'bg-slate-100 text-slate-500'
+                    }`}>
                         {isPremium ? <Crown size={32} strokeWidth={1.5} /> : <User size={32} strokeWidth={1.5} />}
                     </div>
                     <div>
-                        <p className={`text-sm font-bold uppercase tracking-wider mb-1 ${isPremium ? 'text-emerald-400' : 'text-slate-400'}`}>
-                            Plano Atual
+                        <p className={`text-xs font-bold uppercase tracking-widest mb-1.5 ${isPremium ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            Status da Conta
                         </p>
-                        <h2 className="text-3xl font-bold leading-none">
-                            {isPremium ? 'Ruralis PRO' : 'Plano Gratuito'}
+                        <h2 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
+                            {isPremium ? 'Ruralis PRO' : 'Conta Gratuita'}
                         </h2>
                     </div>
                 </div>
 
-                <div className={`px-4 py-1.5 rounded-full text-sm font-bold border flex items-center gap-2 ${
+                <div className={`px-4 py-2 rounded-xl text-sm font-bold border flex items-center gap-2.5 shadow-sm ${
                     subscription?.status === 'active' || subscription?.status === 'paid'
-                    ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                    : 'bg-amber-50 text-amber-600 border-amber-200'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 backdrop-blur-md'
+                    : 'bg-white text-slate-600 border-slate-200'
                 }`}>
-                    <span className={`w-2 h-2 rounded-full ${
-                        subscription?.status === 'active' || subscription?.status === 'paid' ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}></span>
+                    <span className={`relative flex h-2.5 w-2.5`}>
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                          subscription?.status === 'active' || subscription?.status === 'paid' ? 'bg-emerald-400' : 'bg-slate-400'
+                      }`}></span>
+                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                          subscription?.status === 'active' || subscription?.status === 'paid' ? 'bg-emerald-500' : 'bg-slate-500'
+                      }`}></span>
+                    </span>
                     {translateStatus(subscription?.status)}
                 </div>
             </div>
 
             {/* GRID DE INFORMAÇÕES */}
-            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-6 rounded-2xl ${isPremium ? 'bg-slate-800/50 border border-slate-700' : 'bg-slate-50 border border-slate-100'}`}>
+            <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 p-2 rounded-2xl ${isPremium ? 'bg-white/5 border border-white/10 backdrop-blur-sm' : 'bg-slate-50 border border-slate-100'}`}>
                 
                 {/* Info 1 */}
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                <div className={`p-4 rounded-xl flex items-center gap-4 ${isPremium ? 'hover:bg-white/5 transition-colors' : ''}`}>
+                    <div className={`p-2.5 rounded-lg ${isPremium ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-400 shadow-sm border border-slate-100'}`}>
                         <ShieldCheck size={20} />
                     </div>
                     <div>
-                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Nível de Acesso</p>
-                        <p className="font-semibold">{isPremium ? 'Completo (Ilimitado)' : 'Restrito'}</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Acesso</p>
+                        <p className="font-bold text-sm">{isPremium ? 'Ilimitado' : 'Restrito'}</p>
                     </div>
                 </div>
 
                 {/* Info 2 */}
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                <div className={`p-4 rounded-xl flex items-center gap-4 ${isPremium ? 'hover:bg-white/5 transition-colors' : ''}`}>
+                    <div className={`p-2.5 rounded-lg ${isPremium ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-400 shadow-sm border border-slate-100'}`}>
                         <Calendar size={20} />
                     </div>
                     <div>
-                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Última Renovação</p>
-                        <p className="font-semibold">{subscription ? formatData(subscription.updatedAt) : '-'}</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Renovação</p>
+                        <p className="font-bold text-sm">{subscription ? formatData(subscription.updatedAt) : 'Vitalício'}</p>
                     </div>
                 </div>
 
                 {/* Info 3 */}
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isPremium ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-400 shadow-sm'}`}>
+                <div className={`p-4 rounded-xl flex items-center gap-4 ${isPremium ? 'hover:bg-white/5 transition-colors' : ''}`}>
+                    <div className={`p-2.5 rounded-lg ${isPremium ? 'bg-slate-800 text-slate-300' : 'bg-white text-slate-400 shadow-sm border border-slate-100'}`}>
                         <CreditCard size={20} />
                     </div>
                     <div>
-                        <p className={`text-xs font-bold uppercase ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Gateway</p>
-                        <p className="font-semibold">Kiwify Secure</p>
+                        <p className={`text-[10px] font-bold uppercase tracking-wider mb-0.5 ${isPremium ? 'text-slate-400' : 'text-slate-400'}`}>Pagamento</p>
+                        <p className="font-bold text-sm">Kiwify Secure</p>
                     </div>
                 </div>
             </div>
 
             {/* BOTÕES DE AÇÃO */}
-            <div className="mt-8 flex flex-col sm:flex-row gap-4">
+            <div className="mt-8">
                 {!isPremium ? (
-                     <a 
-                     href="https://pay.kiwify.com.br/YfRpxeU"
-                     target="_blank"
-                     rel="noopener noreferrer"
-                     className="flex-1 bg-emerald-600 text-white py-4 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200 hover:-translate-y-1 flex items-center justify-center gap-2"
-                   >
-                     Fazer Upgrade Agora
-                     <ExternalLink size={18} />
-                   </a>
+                     <div className="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+                        <div className="space-y-1">
+                            <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                <Sparkles size={16} className="text-amber-500 fill-amber-500" />
+                                Liberar todo o potencial
+                            </h4>
+                            <p className="text-sm text-slate-500 max-w-md">
+                                Tenha acesso a todas as calculadoras, relatórios ilimitados e suporte prioritário.
+                            </p>
+                        </div>
+                        <a 
+                            href="https://pay.kiwify.com.br/YfRpxeU"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full sm:w-auto px-6 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all shadow-lg hover:shadow-emerald-200 hover:-translate-y-0.5 flex items-center justify-center gap-2 group whitespace-nowrap"
+                        >
+                            Fazer Upgrade
+                            <ArrowRight size={16} className="text-slate-400 group-hover:text-white transition-colors" />
+                        </a>
+                     </div>
                 ) : (
-                    <div className="flex items-center gap-2 text-sm opacity-70">
-                        <AlertCircle size={16} />
-                        <span>Sua assinatura está ativa e operando normalmente.</span>
+                    <div className="flex items-center gap-3 text-sm text-emerald-200/80 bg-emerald-900/20 p-4 rounded-xl border border-emerald-500/20">
+                        <CheckCircle2 size={18} className="text-emerald-400" />
+                        <span className="font-medium">Parabéns! Você tem acesso à ferramenta mais completa do mercado.</span>
                     </div>
                 )}
             </div>
         </div>
       </div>
 
-      {/* ÁREA DE SUPORTE / CANCELAMENTO */}
-      {isPremium && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                Suporte da Assinatura
+      {/* ÁREA DE SUPORTE (Refinada) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 hover:shadow-md transition-shadow">
+            <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <Mail size={18} className="text-slate-400" />
+                Precisa de Ajuda?
             </h3>
-            <p className="text-slate-500 text-sm mb-6 max-w-2xl">
-                Precisa alterar forma de pagamento, emitir nota fiscal ou cancelar sua recorrência? 
-                Nossa equipe de suporte resolve isso diretamente para você para garantir a segurança dos seus dados.
+            <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                Para alterações cadastrais, 2ª via de nota fiscal ou cancelamento, nossa equipe processa sua solicitação manualmente para sua segurança.
             </p>
-            
             <a 
-                href={`mailto:suporte@ruralis.com?subject=Gestão de Assinatura Ruralis PRO&body=Olá, preciso de ajuda com minha assinatura vinculada ao email: ${userEmail}`}
-                className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium text-sm border border-slate-200 hover:border-slate-300 px-4 py-2.5 rounded-lg transition-colors bg-slate-50 hover:bg-white"
+                href={`mailto:suporte@ruralis.com?subject=Suporte Assinatura Ruralis&body=Email da conta: ${userEmail}`}
+                className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 font-bold text-sm group"
             >
-                <Mail size={16} />
-                Entrar em contato com Suporte
+                Falar com Suporte
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
             </a>
           </div>
-      )}
+
+          <div className="bg-slate-50 border border-slate-200 border-dashed rounded-2xl p-6 flex items-center justify-center text-center">
+             <p className="text-xs text-slate-400 font-medium max-w-xs">
+                ID da Assinatura: <span className="font-mono text-slate-500 select-all">{subscription?.subscription_id || subscription?.kiwify_order_id || 'N/A'}</span>
+                <br />
+                Processado via Kiwify Payments
+             </p>
+          </div>
+      </div>
     </div>
   );
 }
 
-// Função auxiliar de tradução mantida
 function translateStatus(status?: string) {
-  if (!status) return 'Inativo';
+  if (!status) return 'Gratuito';
   const map: Record<string, string> = {
     'paid': 'Ativo',
     'approved': 'Aprovado',
     'active': 'Ativo',
-    'past_due': 'Pendente',
+    'past_due': 'Pagamento Pendente',
     'canceled': 'Cancelado',
     'refunded': 'Reembolsado',
     'suspended': 'Suspenso'

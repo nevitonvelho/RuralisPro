@@ -12,3 +12,30 @@
 *{
      font-family: "Roboto" !important
 }
+
+
+@media print {
+  /* Zera as margens do navegador para termos controle total */
+  @page { margin: 1cm; size: A4; }
+  
+  /* Remove scrollbars e fundos */
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  
+  /* O INIMIGO DO PRINT É O FLEXBOX/GRID NA PÁGINA INTEIRA */
+  /* Forçamos o layout a ser "block" na impressão para fluir naturalmente */
+  div { display: block; }
+  
+  /* Classe Mágica: Tudo que tiver isso NÃO SERÁ CORTADO */
+  .no-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    break-before: auto;
+    page-break-before: auto;
+    display: block; /* Importante! */
+    position: relative;
+  }
+
+  /* Se uma tabela for muito longa, repete o cabeçalho na próxima pág */
+  thead { display: table-header-group; }
+  tr { page-break-inside: avoid; }
+}
