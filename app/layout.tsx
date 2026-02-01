@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 // 1. Importamos a Roboto do pacote oficial do Next
-import { Roboto } from "next/font/google"; 
+import { Roboto } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import Navbar from "./components/Navbar";
@@ -26,12 +26,14 @@ export default function RootLayout({
     <html lang="pt-BR">
       {/* Removemos os <link> manuais do head, o Next cuida disso agora */}
       <head />
-      
+
       {/* 3. Aplicamos roboto.className no body. 
           Isso aplica a fonte no site todo automaticamente. */}
       <body className={`${roboto.className} bg-slate-50 text-slate-900 antialiased`}>
         <Providers>
-          <Navbar /> 
+          <div className="no-print">
+            <Navbar />
+          </div>
           <main className="min-h-[calc(100vh-64px)]">
             {children}
           </main>
