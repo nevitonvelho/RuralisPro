@@ -1,3 +1,5 @@
+"use client";
+
 // ... (imports remain mostly the same, ensuring all icons are available)
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
@@ -115,8 +117,8 @@ export default function Navbar() {
     <>
       <header
         className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || isMobileMenuOpen
-            ? "bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-sm"
-            : "bg-white/50 backdrop-blur-sm border-b border-transparent"
+          ? "bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-sm"
+          : "bg-white/50 backdrop-blur-sm border-b border-transparent"
           }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-4">
