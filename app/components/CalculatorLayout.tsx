@@ -11,6 +11,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
+// Interface para o usuário do contexto
+interface AuthUser {
+  name?: string;
+  email?: string;
+}
+
 interface CalculatorLayoutProps {
   produtor: string;
   setProdutor: (v: string) => void;
@@ -43,7 +49,7 @@ export function CalculatorLayout({
   children
 }: CalculatorLayoutProps) {
   
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: AuthUser | null };
   const isAuthenticated = !!user;
   const dataRelatorio = new Date().toLocaleDateString('pt-BR');
 
@@ -54,75 +60,53 @@ export function CalculatorLayout({
     window.open(`https://wa.me/?text=${encodeURIComponent(finalMessage)}`, '_blank');
   };
 
-  const handlePrint = () => {
-    window.print();
-  }
+  const handlePrint = () => window.print();
 
   const handleAction = (action: () => void) => {
     if (isAuthenticated) {
       action();
     } else {
-      (document.getElementById("modal_auth") as any)?.showModal();
+      const modal = document.getElementById("modal_auth") as HTMLDialogElement | null;
+      modal?.showModal();
     }
   };
 
   return (
     <>
-      <style jsx global>{`
-        /* CORREÇÃO DE QUEBRA DE PÁGINA */
-        /* Aplique a classe 'avoid-break' nas divs dos seus cards/resultados */
+      {/* Estilos de Impressão (Removido o erro de tipagem do JSX Global) */}
+      <style dangerouslySetInnerHTML={{ __html: `
         .avoid-break {
           break-inside: avoid;
           page-break-inside: avoid;
-          page-break-before: auto;
-          display: block; /* Garante comportamento de bloco na impressão */
+          display: block;
         }
 
         @media print {
           @page { margin: 0.8cm; size: A4; }
-          body { background-color: white; -webkit-print-color-adjust: exact; }
+          body { background-color: white !important; -webkit-print-color-adjust: exact; }
           body * { visibility: hidden; }
-          
           #print-area, #print-area * { visibility: visible; }
-          
           #print-area { 
             position: absolute; left: 0; top: 0; width: 100%; 
             margin: 0; padding: 0; background: white; color: black; 
           }
-          
           .no-print { display: none !important; }
-          
-          /* Força visual limpo na impressão */
-          .print-border-black { border-color: black !important; }
-          .print-text-black { color: black !important; }
+          input { border: none !important; padding: 0 !important; font-weight: bold !important; background: transparent !important; }
           .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
-          
-          /* Remove cores de fundo pesadas */
-          .bg-emerald-600, .bg-slate-900, .bg-slate-50 { 
-            background-color: transparent !important; 
-            color: black !important; 
-          }
-          
-          /* Inputs na impressão ficam parecendo texto puro */
-          input { 
-            border: none !important; 
-            padding: 0 !important; 
-            font-weight: bold !important;
-          }
         }
-      `}</style>
+      `}} />
 
       <div id="print-area" className="max-w-6xl mx-auto pt-8 pb-20 px-4 md:px-8">
         
-        {/* === CABEÇALHO IMPRESSÃO (Mantido igual) === */}
+        {/* === CABEÇALHO IMPRESSÃO === */}
         <div className="hidden print:block mb-6 border-b-2 border-black pb-4">
            <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-5">
-                 <img src="/logo.png" alt="Ruralis PRO" className="h-14 w-auto object-contain grayscale contrast-150"/>
+                 <div className="text-2xl font-black tracking-tighter text-black">RURALIS PRO</div>
                  <div className="h-10 w-[2px] bg-black"></div>
                  <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Ferramenta</p>
-                    <p className="text-xl font-black uppercase tracking-tight leading-none text-black">{category}</p>
+                    <p className="text-xl font-black uppercase text-black">{category}</p>
                  </div>
               </div>
               <div className="text-right">
@@ -147,7 +131,7 @@ export function CalculatorLayout({
            </div>
         </div>
 
-        {/* === CABEÇALHO DA TELA (Botões melhorados) === */}
+        {/* === CABEÇALHO DA TELA === */}
         <header className="flex flex-col xl:flex-row xl:items-end justify-between gap-8 mb-10 no-print">
           <div className="flex-1">
              <div className="inline-flex items-center gap-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 border border-emerald-100">
@@ -164,12 +148,12 @@ export function CalculatorLayout({
           <div className="flex flex-col sm:flex-row gap-3 min-w-fit">
             <button 
               onClick={() => handleAction(handlePrint)}
-              className="group flex items-center justify-center gap-3 bg-white border-2 border-slate-200 text-slate-600 font-bold text-sm px-6 py-3.5 rounded-xl hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 transition-all active:scale-[0.98]"
+              className="group flex items-center justify-center gap-3 bg-white border-2 border-slate-200 text-slate-600 font-bold text-sm px-6 py-3.5 rounded-xl hover:border-slate-300 transition-all active:scale-[0.98]"
             >
               {isAuthenticated ? (
-                <> <Printer size={18} className="text-slate-400 group-hover:text-slate-600"/> <span>Imprimir</span> </>
+                <> <Printer size={18}/> <span>Imprimir</span> </>
               ) : (
-                <> <Lock size={16} className="text-slate-400"/> <span>Login p/ Imprimir</span> </>
+                <> <Lock size={16}/> <span>Login p/ Imprimir</span> </>
               )}
             </button>
 
@@ -177,12 +161,12 @@ export function CalculatorLayout({
               onClick={() => handleAction(handleShare)} 
               className={`group flex items-center justify-center gap-3 font-bold text-sm px-6 py-3.5 rounded-xl transition-all shadow-md active:scale-[0.98] ${
                 isAuthenticated 
-                ? "bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-emerald-200 hover:shadow-emerald-300 ring-offset-2 focus:ring-2 ring-[#25d366]" 
-                : "bg-slate-100 text-slate-400 border border-slate-200 cursor-pointer hover:bg-slate-200"
+                ? "bg-[#25D366] text-white" 
+                : "bg-slate-100 text-slate-400 border border-slate-200"
               }`}
             >
               {isAuthenticated ? (
-                <> <WhatsAppIcon className="w-5 h-5 fill-white" /> <span>Enviar no WhatsApp</span> <ChevronRight size={16} className="opacity-70 group-hover:translate-x-1 transition-transform"/> </>
+                <> <WhatsAppIcon className="w-5 h-5 fill-white" /> <span>WhatsApp</span> <ChevronRight size={16}/> </>
               ) : (
                 <> <Lock size={16} /> <span>Login p/ Compartilhar</span> </>
               )}
@@ -190,54 +174,41 @@ export function CalculatorLayout({
           </div>
         </header>
 
-        {/* === NOVO DESIGN DE INPUTS (Parece um painel) === */}
+        {/* === PAINEL DE IDENTIFICAÇÃO === */}
         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 mb-8 no-print">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Input Produtor */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all flex items-center gap-4">
-                    <div className="bg-emerald-100 p-2.5 rounded-lg text-emerald-700">
-                        <User size={20} />
-                    </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
+                    <div className="bg-emerald-100 p-2.5 rounded-lg text-emerald-700"><User size={20} /></div>
                     <div className="flex-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                            Nome do Produtor
-                        </label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Produtor</label>
                         <input 
                             type="text" 
                             value={produtor} 
                             onChange={(e) => setProdutor(e.target.value)} 
-                            placeholder="Toque para identificar..." 
-                            className="w-full text-slate-900 font-bold outline-none placeholder:text-slate-300 placeholder:font-normal text-base bg-transparent"
+                            placeholder="Nome do cliente..." 
+                            className="w-full text-slate-900 font-bold outline-none bg-transparent"
                         />
                     </div>
                     <PenLine size={16} className="text-slate-300" />
                 </div>
 
-                {/* Input Talhão */}
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-100 transition-all flex items-center gap-4">
-                    <div className="bg-blue-100 p-2.5 rounded-lg text-blue-700">
-                         <MapPin size={20} />
-                    </div>
+                <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
+                    <div className="bg-blue-100 p-2.5 rounded-lg text-blue-700"><MapPin size={20} /></div>
                     <div className="flex-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                            Talhão / Área
-                        </label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Localização</label>
                         <input 
                             type="text" 
                             value={talhao} 
                             onChange={(e) => setTalhao(e.target.value)} 
-                            placeholder="Ex: Talhão da Baixada..." 
-                            className="w-full text-slate-900 font-bold outline-none placeholder:text-slate-300 placeholder:font-normal text-base bg-transparent"
+                            placeholder="Ex: Piquete 01..." 
+                            className="w-full text-slate-900 font-bold outline-none bg-transparent"
                         />
                     </div>
                     <PenLine size={16} className="text-slate-300" />
                 </div>
-
             </div>
         </div>
 
-        {/* === ÁREA DA CALCULADORA (Injectada) === */}
         <main className="w-full space-y-6">
              {children}
         </main>
@@ -251,18 +222,13 @@ export function CalculatorLayout({
               </div>
               <div className="text-center pt-4 border-t border-black">
                   <p className="text-sm font-bold uppercase text-black">Responsável Técnico</p>
-                  <p className="text-xs text-slate-500">CREA / Assinatura</p>
+                  <p className="text-xs text-slate-500">Assinatura / Registro</p>
               </div>
            </div>
-           
-           <div className="text-center bg-slate-50 p-2 rounded border border-slate-100">
-             <p className="text-[9px] text-slate-400 uppercase tracking-widest leading-relaxed">
-               Este documento é uma estimativa técnica gerada pela plataforma <strong>Ruralis PRO</strong>.
-               A validação agronômica presencial é indispensável.
-             </p>
-           </div>
+           <p className="text-[9px] text-slate-400 text-center uppercase tracking-widest">
+             Gerado por Ruralis PRO - A validação técnica presencial é obrigatória.
+           </p>
         </div>
-
       </div>
     </>
   );
