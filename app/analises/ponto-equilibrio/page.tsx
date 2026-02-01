@@ -73,15 +73,32 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function PontoEquilibrioPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - CUSTOS
   const [custoPorHa, setCustoPorHa] = useState<number | string>(""); // Custo Total
@@ -89,6 +106,24 @@ export default function PontoEquilibrioPage() {
   // INPUTS - EXPECTATIVAS
   const [precoAlvo, setPrecoAlvo] = useState<number | string>(""); // R$/sc
   const [produtividadeAlvo, setProdutividadeAlvo] = useState<number | string>(""); // sc/ha
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setCustoPorHa(i.custoPorHa || "");
+          setPrecoAlvo(i.precoAlvo || "");
+          setProdutividadeAlvo(i.produtividadeAlvo || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -153,6 +188,51 @@ export default function PontoEquilibrioPage() {
     };
   }, [custoPorHa, precoAlvo, produtividadeAlvo]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          custoPorHa, precoAlvo, produtividadeAlvo
+        },
+        results: {
+          eqSacas: resultados.eqSacas,
+          eqPreco: resultados.eqPreco,
+          margemSeguranca: resultados.margemSeguranca,
+          status: resultados.status,
+          receitaEsperada: resultados.receitaEsperada,
+          lucroProjetado: resultados.lucroProjetado
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Ponto Equilíbrio - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'ponto-equilibrio',
+          `Ponto Equilíbrio - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/ponto-equilibrio?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const shareText = `⚖️ *Ponto de Equilíbrio - ${talhao || 'Safra'}*\n\n📉 *Preciso Colher:* ${fmtNum(resultados.eqSacas)} sc/ha\n💲 *Preço Mínimo:* ${fmtMoeda(resultados.eqPreco)}/sc\n\n🛡️ *Margem de Segurança:* ${fmtPct(resultados.margemSeguranca)}\n(Custo Base: ${fmtMoeda(Number(custoPorHa))}/ha)`;
 
   return (
@@ -170,6 +250,8 @@ export default function PontoEquilibrioPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 
@@ -284,8 +366,8 @@ export default function PontoEquilibrioPage() {
 
               {/* Card Secundário: MARGEM DE SEGURANÇA */}
               <div className={`print-card border rounded-xl p-6 shadow-lg relative ${resultados.status === 'safe' ? 'bg-emerald-50 border-emerald-200' :
-                  resultados.status === 'warning' ? 'bg-amber-50 border-amber-200' :
-                    'bg-red-50 border-red-200'
+                resultados.status === 'warning' ? 'bg-amber-50 border-amber-200' :
+                  'bg-red-50 border-red-200'
                 }`}>
                 <div className="flex items-center justify-between mb-4 pb-4 border-b border-black/5">
                   <div className="flex items-center gap-2">
@@ -295,13 +377,13 @@ export default function PontoEquilibrioPage() {
                           'text-red-600'
                     } size={20} />
                     <h4 className={`font-bold text-sm ${resultados.status === 'safe' ? 'text-emerald-900' :
-                        resultados.status === 'warning' ? 'text-amber-900' :
-                          'text-red-900'
+                      resultados.status === 'warning' ? 'text-amber-900' :
+                        'text-red-900'
                       }`}>Margem de Segurança</h4>
                   </div>
                   <div className={`text-[10px] font-bold uppercase px-2 py-1 rounded ${resultados.status === 'safe' ? 'bg-emerald-200 text-emerald-800' :
-                      resultados.status === 'warning' ? 'bg-amber-200 text-amber-800' :
-                        'bg-red-200 text-red-800'
+                    resultados.status === 'warning' ? 'bg-amber-200 text-amber-800' :
+                      'bg-red-200 text-red-800'
                     }`}>
                     {resultados.status === 'safe' ? 'Seguro' : resultados.status === 'warning' ? 'Atenção' : 'Risco'}
                   </div>
@@ -310,8 +392,8 @@ export default function PontoEquilibrioPage() {
                 <div className="flex items-end justify-between">
                   <div>
                     <span className={`block text-3xl font-black ${resultados.status === 'safe' ? 'text-emerald-700' :
-                        resultados.status === 'warning' ? 'text-amber-700' :
-                          'text-red-700'
+                      resultados.status === 'warning' ? 'text-amber-700' :
+                        'text-red-700'
                       }`}>{fmtPct(resultados.margemSeguranca)}</span>
                     <span className="text-[10px] opacity-70 uppercase font-bold text-black">Acima do custo</span>
                   </div>

@@ -97,20 +97,56 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function CustoHectarePage() {
   const { user, loading } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // Estados
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   const [sementes, setSementes] = useState<number | string>("");
   const [fertilizantes, setFertilizantes] = useState<number | string>("");
   const [defensivos, setDefensivos] = useState<number | string>("");
   const [mecanizacao, setMecanizacao] = useState<number | string>("");
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setSementes(i.sementes || "");
+          setFertilizantes(i.fertilizantes || "");
+          setDefensivos(i.defensivos || "");
+          setMecanizacao(i.mecanizacao || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // Cálculos
   const resultados = useMemo(() => {
@@ -133,6 +169,49 @@ export default function CustoHectarePage() {
       pctMecanizacao: total > 0 ? (m / total) * 100 : 0
     };
   }, [sementes, fertilizantes, defensivos, mecanizacao]);
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          sementes, fertilizantes, defensivos, mecanizacao
+        },
+        results: {
+          insumos: resultados.insumos,
+          total: resultados.total,
+          pctInsumos: resultados.pctInsumos,
+          pctMecanizacao: resultados.pctMecanizacao
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Custo por Hectare - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'custo-hectare',
+          `Custo por Hectare - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/custo-hectare?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
 
   // Compartilhamento
   const shareText = `💰 *Estimativa de Custos de Implantação*
@@ -159,6 +238,8 @@ export default function CustoHectarePage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

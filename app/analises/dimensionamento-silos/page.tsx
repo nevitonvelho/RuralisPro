@@ -96,15 +96,32 @@ const TechnicalTable = ({ title, rows }: { title: string; rows: TechnicalTableRo
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function DimensionamentoSiloPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState(""); // Identificação do Silo
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - DIMENSÕES
   const [diametro, setDiametro] = useState<number | string>(""); // m
@@ -116,6 +133,26 @@ export default function DimensionamentoSiloPage() {
   // INPUTS - COMERCIAL
   const [precoSaca, setPrecoSaca] = useState<number | string>(""); // R$/sc
   const [produtividade, setProdutividade] = useState<number | string>(""); // sc/ha 
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setDiametro(i.diametro || "");
+          setAltura(i.altura || "");
+          setDensidade(i.densidade || 750);
+          setPrecoSaca(i.precoSaca || "");
+          setProdutividade(i.produtividade || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -153,6 +190,50 @@ export default function DimensionamentoSiloPage() {
     };
   }, [diametro, altura, densidade, precoSaca, produtividade]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          diametro, altura, densidade, precoSaca, produtividade
+        },
+        results: {
+          volM3: resultados.volM3,
+          pesoTon: resultados.pesoTon,
+          sacas: resultados.sacas,
+          valorTotal: resultados.valorTotal,
+          haCobertos: resultados.haCobertos
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Silo - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'dimensionamento-silos',
+          `Silo - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/dimensionamento-silos?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // PRESETS DE DENSIDADE
   const setPreset = (val: number) => setDensidade(val);
 
@@ -178,6 +259,8 @@ export default function DimensionamentoSiloPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

@@ -70,15 +70,32 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function FreteAgricolaPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState(""); // Rota
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - LOGÍSTICA
   const [precoTon, setPrecoTon] = useState<number | string>(""); // R$/Ton
@@ -87,6 +104,25 @@ export default function FreteAgricolaPage() {
 
   // INPUTS - MERCADO
   const [precoSaca, setPrecoSaca] = useState<number | string>(""); // R$/sc
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setPrecoTon(i.precoTon || "");
+          setDistancia(i.distancia || "");
+          setPesoCarga(i.pesoCarga || "");
+          setPrecoSaca(i.precoSaca || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -146,6 +182,50 @@ export default function FreteAgricolaPage() {
     };
   }, [precoTon, distancia, pesoCarga, precoSaca]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          precoTon, distancia, pesoCarga, precoSaca
+        },
+        results: {
+          custoSaca: resultados.custoSaca,
+          totalViagem: resultados.totalViagem,
+          custoKm: resultados.custoKm,
+          impactoMargem: resultados.impactoMargem,
+          sacaLiquida: resultados.sacaLiquida
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Frete - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'frete-agricola',
+          `Frete - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/frete-agricola?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // SET PRESETS
   const setTruck = (val: number) => setPesoCarga(val);
 
@@ -166,6 +246,8 @@ export default function FreteAgricolaPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

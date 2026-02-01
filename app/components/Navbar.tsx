@@ -91,15 +91,18 @@ export default function Navbar() {
       (document.getElementById('modal_auth') as any).close();
       setEmail("");
       setPassword("");
+      // Redirecionar para o Dashboard após login
+      window.location.href = "/dashboard";
     } catch (err: any) {
       setError(isLoginTab ? "Credenciais inválidas." : "Erro ao criar conta.");
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
-    signOut(auth);
+    await signOut(auth);
+    window.location.href = "/";
   };
 
   const NavLink = ({ href, children, icon: Icon, onClick }: any) => (

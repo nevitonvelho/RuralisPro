@@ -69,20 +69,60 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "1
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function RegulagemPulverizadorPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
+  // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
+
   const [velocidade, setVelocidade] = useState<number | string>("");
   const [espacamento, setEspacamento] = useState<number | string>("50");
   const [coletaMl, setColetaMl] = useState<number | string>("");
   const [metaVolume, setMetaVolume] = useState<number | string>("");
   const [capacidadeTanque, setCapacidadeTanque] = useState<number | string>("");
   const [custoCalda, setCustoCalda] = useState<number | string>("");
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setVelocidade(i.velocidade || "");
+          setEspacamento(i.espacamento || "50");
+          setColetaMl(i.coletaMl || "");
+          setMetaVolume(i.metaVolume || "");
+          setCapacidadeTanque(i.capacidadeTanque || "");
+          setCustoCalda(i.custoCalda || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v);
@@ -128,6 +168,50 @@ export default function RegulagemPulverizadorPage() {
     };
   }, [velocidade, espacamento, coletaMl, metaVolume, capacidadeTanque, custoCalda]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          velocidade, espacamento, coletaMl, metaVolume, capacidadeTanque, custoCalda
+        },
+        results: {
+          l_ha: resultados.l_ha,
+          autonomia: resultados.autonomia,
+          desvio: resultados.desvio,
+          perdaFinanceira: resultados.perdaFinanceira,
+          status: resultados.status
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Pulverizador - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'regulagem-pulverizador',
+          `Pulverizador - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/regulagem-pulverizador?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const shareText = `💧 *Regulagem de Pulverizador*\n\n⚙️ *Config:* ${velocidade} km/h | Bico: ${coletaMl} ml/min\n📊 *Taxa Real:* ${fmtNum(resultados.l_ha)} L/ha\n🎯 *Meta:* ${metaVolume || '-'} L/ha`;
 
   return (
@@ -145,6 +229,8 @@ export default function RegulagemPulverizadorPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

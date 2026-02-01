@@ -95,15 +95,32 @@ const TechnicalTable = ({ title, rows }: { title: string; rows: TechnicalTableRo
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function EficienciaIrrigacaoPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState(""); // Pivô / Setor
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - TESTE DE COLETORES
   const [mediaGeral, setMediaGeral] = useState<number | string>(""); // mm
@@ -113,6 +130,26 @@ export default function EficienciaIrrigacaoPage() {
   const [potencia, setPotencia] = useState<number | string>(""); // cv/hp
   const [custoKwh, setCustoKwh] = useState<number | string>(""); // R$/kWh
   const [horasAno, setHorasAno] = useState<number | string>("2000"); // Horas trabalhadas/ano
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setMediaGeral(i.mediaGeral || "");
+          setMediaInferior(i.mediaInferior || "");
+          setPotencia(i.potencia || "");
+          setCustoKwh(i.custoKwh || "");
+          setHorasAno(i.horasAno || "2000");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -156,7 +193,50 @@ export default function EficienciaIrrigacaoPage() {
     };
   }, [mediaGeral, mediaInferior, potencia, custoKwh, horasAno]);
 
-  // FORMATAÇÃO
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          mediaGeral, mediaInferior, potencia, custoKwh, horasAno
+        },
+        results: {
+          du: resultados.du,
+          status: resultados.status,
+          fatorAjuste: resultados.fatorAjuste,
+          custoTotalEnergia: resultados.custoTotalEnergia,
+          desperdicio: resultados.desperdicio
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Irrigação (Eficiência) - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'eficiencia-irrigacao',
+          `Irrigação (Eficiência) - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/eficiencia-irrigacao?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v);
   const fmtPct = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v) + '%';
@@ -178,6 +258,8 @@ export default function EficienciaIrrigacaoPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 
@@ -293,9 +375,9 @@ export default function EficienciaIrrigacaoPage() {
               <div className="print-card bg-slate-900 text-white rounded-xl p-8 shadow-xl relative overflow-hidden">
                 {/* Background Effect */}
                 <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none ${resultados.status === 'excelente' ? 'bg-emerald-500/20' :
-                    resultados.status === 'bom' ? 'bg-blue-500/20' :
-                      resultados.status === 'regular' ? 'bg-yellow-500/20' :
-                        'bg-red-500/20'
+                  resultados.status === 'bom' ? 'bg-blue-500/20' :
+                    resultados.status === 'regular' ? 'bg-yellow-500/20' :
+                      'bg-red-500/20'
                   }`}></div>
 
                 <div className="relative z-10">
@@ -304,9 +386,9 @@ export default function EficienciaIrrigacaoPage() {
                       Coeficiente de Uniformidade
                     </p>
                     <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase border ${resultados.status === 'excelente' ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300' :
-                        resultados.status === 'bom' ? 'bg-blue-500/20 border-blue-500 text-blue-300' :
-                          resultados.status === 'regular' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-300' :
-                            'bg-red-500/20 border-red-500 text-red-300'
+                      resultados.status === 'bom' ? 'bg-blue-500/20 border-blue-500 text-blue-300' :
+                        resultados.status === 'regular' ? 'bg-yellow-500/20 border-yellow-500 text-yellow-300' :
+                          'bg-red-500/20 border-red-500 text-red-300'
                       }`}>
                       {resultados.status}
                     </div>
@@ -322,9 +404,9 @@ export default function EficienciaIrrigacaoPage() {
                   <div className="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
                     <div
                       className={`h-full transition-all duration-1000 ${resultados.status === 'excelente' ? 'bg-emerald-500' :
-                          resultados.status === 'bom' ? 'bg-blue-500' :
-                            resultados.status === 'regular' ? 'bg-yellow-500' :
-                              'bg-red-500'
+                        resultados.status === 'bom' ? 'bg-blue-500' :
+                          resultados.status === 'regular' ? 'bg-yellow-500' :
+                            'bg-red-500'
                         }`}
                       style={{ width: `${resultados.du}%` }}
                     ></div>

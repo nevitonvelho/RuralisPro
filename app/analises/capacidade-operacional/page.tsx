@@ -85,15 +85,32 @@ const TechnicalTable = ({ title, rows }: { title: string, rows: any[] }) => {
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function CapacidadeOperacionalPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState(""); // Operação
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - MÁQUINA
   const [velocidade, setVelocidade] = useState<number | string>(""); // km/h
@@ -105,6 +122,26 @@ export default function CapacidadeOperacionalPage() {
   // INPUTS - PLANEJAMENTO (Opcional)
   const [areaTotal, setAreaTotal] = useState<number | string>(""); // ha
   const [jornada, setJornada] = useState<number | string>(10); // horas/dia
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setVelocidade(i.velocidade || "");
+          setLargura(i.largura || "");
+          setEficiencia(i.eficiencia || 75);
+          setAreaTotal(i.areaTotal || "");
+          setJornada(i.jornada || 10);
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -134,6 +171,49 @@ export default function CapacidadeOperacionalPage() {
     return { cct, cce, horasTotais, diasTotais };
   }, [velocidade, largura, eficiencia, areaTotal, jornada]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          velocidade, largura, eficiencia, areaTotal, jornada
+        },
+        results: {
+          cct: resultados.cct,
+          cce: resultados.cce,
+          horasTotais: resultados.horasTotais,
+          diasTotais: resultados.diasTotais
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Capacidade Operacional - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'capacidade-operacional',
+          `Capacidade Operacional - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/capacidade-operacional?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // PRESETS DE EFICIÊNCIA
   const setPreset = (val: number) => setEficiencia(val);
 
@@ -157,6 +237,8 @@ export default function CapacidadeOperacionalPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

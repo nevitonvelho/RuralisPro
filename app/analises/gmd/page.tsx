@@ -72,15 +72,32 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function ConversaoAlimentarPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState(""); // Lote
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - DESEMPENHO
   const [pesoEntrada, setPesoEntrada] = useState<number | string>(""); // kg
@@ -90,6 +107,26 @@ export default function ConversaoAlimentarPage() {
   // INPUTS - NUTRIÇÃO
   const [consumoDiario, setConsumoDiario] = useState<number | string>(""); // kg MN ou MS
   const [custoRacao, setCustoRacao] = useState<number | string>(""); // R$ por kg
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setPesoEntrada(i.pesoEntrada || "");
+          setPesoSaida(i.pesoSaida || "");
+          setDias(i.dias || "");
+          setConsumoDiario(i.consumoDiario || "");
+          setCustoRacao(i.custoRacao || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -150,6 +187,50 @@ export default function ConversaoAlimentarPage() {
       ]
     };
   }, [pesoEntrada, pesoSaida, dias, consumoDiario, custoRacao]);
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          pesoEntrada, pesoSaida, dias, consumoDiario, custoRacao
+        },
+        results: {
+          gmd: resultados.gmd,
+          ca: resultados.ca,
+          custoArroba: resultados.custoArroba,
+          ganhoTotal: resultados.ganhoTotal,
+          custoCabecaDia: resultados.custoCabecaDia
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `GMD e Conversão - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'gmd',
+          `GMD e Conversão - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/gmd?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
 
   const shareText = `🐂 *Zootecnia de Precisão*\n\n📊 *GMD:* ${fmtDec(resultados.gmd)} kg/dia\n🔄 *Conversão (CA):* ${fmtNum(resultados.ca)}\n\n💰 *Custo da @ Produzida:* ${fmtMoeda(resultados.custoArroba)}\n📅 *Período:* ${dias} dias`;
 

@@ -69,17 +69,53 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function RendimentoCarcacaPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
+
   const [pesoVivo, setPesoVivo] = useState<number | string>("");
   const [pesoCarcaca, setPesoCarcaca] = useState<number | string>("");
   const [precoArroba, setPrecoArroba] = useState<number | string>("");
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setPesoVivo(i.pesoVivo || "");
+          setPesoCarcaca(i.pesoCarcaca || "");
+          setPrecoArroba(i.precoArroba || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(v);
@@ -113,6 +149,49 @@ export default function RendimentoCarcacaPage() {
     };
   }, [pesoVivo, pesoCarcaca, precoArroba]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          pesoVivo, pesoCarcaca, precoArroba
+        },
+        results: {
+          rc: resultados.rc,
+          arrobas: resultados.arrobas,
+          receita: resultados.receita,
+          diff1pct: resultados.diff1pct
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Rendimento - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'rendimento-carcaca',
+          `Rendimento - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/rendimento-carcaca?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const shareText = `🥩 *Rendimento de Carcaça*\n\n📊 *RC:* ${fmtNum(resultados.rc)}%\n⚖️ *Arrobas:* ${fmtNum(resultados.arrobas)} @\n💰 *Total:* ${fmtMoeda(resultados.receita)}`;
 
   return (
@@ -130,6 +209,8 @@ export default function RendimentoCarcacaPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

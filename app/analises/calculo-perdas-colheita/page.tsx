@@ -83,28 +83,66 @@ const TechnicalTable = ({ title, rows }: { title: string, rows: any[] }) => {
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function PerdaColheitaPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS GERAIS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // CONFIGURAÇÃO
   const [cultura, setCultura] = useState<"soja" | "milho">("soja");
   const [metodo, setMetodo] = useState<"contagem" | "pesagem">("contagem");
 
   // INPUTS
-  const [areaArmacao, setAreaArmacao] = useState<number | string>(1); // m² (padrão 1m x 1m)
-  const [valorMedido, setValorMedido] = useState<number | string>(""); // Qtd grãos ou Gramas
-  const [precoSaca, setPrecoSaca] = useState<number | string>(""); // R$
+  const [areaArmacao, setAreaArmacao] = useState<number | string>(1);
+  const [valorMedido, setValorMedido] = useState<number | string>("");
+  const [precoSaca, setPrecoSaca] = useState<number | string>("");
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+
+          setCultura(i.cultura || "soja");
+          setMetodo(i.metodo || "contagem");
+          setAreaArmacao(i.areaArmacao || 1);
+          setValorMedido(i.valorMedido || "");
+          setPrecoSaca(i.precoSaca || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CONSTANTES
-  const PMG_SOJA = 0.16; // ~160g por 1000 grãos
-  const PMG_MILHO = 0.35; // ~350g por 1000 grãos
+  const PMG_SOJA = 0.16;
+  const PMG_MILHO = 0.35;
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -114,7 +152,6 @@ export default function PerdaColheitaPage() {
 
     let perdaGramasPorMetro = 0;
 
-    // 1. Calcular gramas perdidos por m²
     if (metodo === "pesagem") {
       perdaGramasPorMetro = medido / area;
     } else {
@@ -122,13 +159,11 @@ export default function PerdaColheitaPage() {
       perdaGramasPorMetro = (medido * pesoGrao) / area;
     }
 
-    // 2. Extrapolar
     const perdaKgHa = perdaGramasPorMetro * 10;
     const perdaScHa = perdaKgHa / 60;
     const prejuizoHa = perdaScHa * preco;
 
-    // 3. Tolerância
-    const limiteAceitavel = cultura === "soja" ? 60 : 90; // kg/ha
+    const limiteAceitavel = cultura === "soja" ? 60 : 90;
     const isCritical = perdaKgHa > limiteAceitavel;
 
     return {
@@ -140,7 +175,52 @@ export default function PerdaColheitaPage() {
     };
   }, [areaArmacao, valorMedido, precoSaca, cultura, metodo]);
 
-  // FORMATAÇÃO
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          cultura, metodo, areaArmacao, valorMedido, precoSaca
+        },
+        results: resultsForSave(resultados)
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Perdas (${cultura}) - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'calculo-perdas-colheita',
+          `Perdas (${cultura}) - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/calculo-perdas-colheita?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
+  const resultsForSave = (r: any) => ({
+    kgHa: r.kgHa,
+    scHa: r.scHa,
+    prejuizo: r.prejuizo,
+    isCritical: r.isCritical,
+    limite: r.limite
+  });
+
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(v);
 
@@ -161,6 +241,8 @@ export default function PerdaColheitaPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

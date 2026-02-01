@@ -86,15 +86,32 @@ const TechnicalTable = ({ title, rows }: { title: string, rows: any[] }) => {
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function ConversorMercadoPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - TIPO DE GRÃO
   const [cultura, setCultura] = useState<"soja" | "milho" | "trigo">("soja");
@@ -106,6 +123,26 @@ export default function ConversorMercadoPage() {
 
   // INPUTS - PRODUTIVIDADE (AGRONÔMICO)
   const [produtividadeBuAcre, setProdutividadeBuAcre] = useState<number | string>(""); // bu/acre
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setCultura(i.cultura || "soja");
+          setCotacaoChicago(i.cotacaoChicago || "");
+          setPremioPorto(i.premioPorto || "");
+          setTaxaCambio(i.taxaCambio || "");
+          setProdutividadeBuAcre(i.produtividadeBuAcre || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CONSTANTES DE CONVERSÃO
   const PESO_BUSHEL = {
@@ -140,6 +177,52 @@ export default function ConversorMercadoPage() {
     return { precoSacaBrl, precoSacaUsd, precoTonBrl, buPorSaca, scPorHa, kgPorHa, precoFullUsdBu };
   }, [cultura, cotacaoChicago, premioPorto, taxaCambio, produtividadeBuAcre]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          cultura, cotacaoChicago, premioPorto, taxaCambio, produtividadeBuAcre
+        },
+        results: {
+          precoSacaBrl: resultados.precoSacaBrl,
+          precoSacaUsd: resultados.precoSacaUsd,
+          precoTonBrl: resultados.precoTonBrl,
+          buPorSaca: resultados.buPorSaca,
+          scPorHa: resultados.scPorHa,
+          kgPorHa: resultados.kgPorHa,
+          precoFullUsdBu: resultados.precoFullUsdBu
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Conversor - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'conversao-medidas',
+          `Conversor - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/conversao-medidas?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtUsd = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
@@ -162,6 +245,8 @@ export default function ConversorMercadoPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

@@ -68,16 +68,32 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+// ... (imports remain)
+
 export default function SuplementacaoInvernoPage() {
   const [mounted, setMounted] = useState(false);
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
+
   const [qtdAnimais, setQtdAnimais] = useState<number | string>("");
   const [pesoMedio, setPesoMedio] = useState<number | string>("");
   const [precoSaco, setPrecoSaco] = useState<number | string>("");
@@ -86,6 +102,27 @@ export default function SuplementacaoInvernoPage() {
   const [tipoEstrategia, setTipoEstrategia] = useState<"ureia" | "01" | "03" | "custom">("custom");
 
   useEffect(() => { setMounted(true); }, []);
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setQtdAnimais(i.qtdAnimais || "");
+          setPesoMedio(i.pesoMedio || "");
+          setPrecoSaco(i.precoSaco || "");
+          setPesoSaco(i.pesoSaco || 30);
+          setConsumoAlvo(i.consumoAlvo || "");
+          setTipoEstrategia(i.tipoEstrategia || "custom");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   const aplicarPreset = (tipo: "ureia" | "01" | "03") => {
     const peso = Number(pesoMedio) || 450;
@@ -124,6 +161,49 @@ export default function SuplementacaoInvernoPage() {
     };
   }, [qtdAnimais, consumoAlvo, precoSaco, pesoSaco]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          qtdAnimais, pesoMedio, precoSaco, pesoSaco, consumoAlvo, tipoEstrategia
+        },
+        results: {
+          custoDia: resultados.custoDia,
+          custoMes: resultados.custoMes,
+          sacosMes: resultados.sacosMes,
+          consumoLoteMesKg: resultados.consumoLoteMesKg
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Suplementação - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'suplementacao_inverno',
+          `Suplementação - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/suplementacao_inverno?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   if (!mounted) return null;
 
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -143,6 +223,8 @@ export default function SuplementacaoInvernoPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={`📊 Planejamento Nutricional: ${fmtMoeda(resultados.custoDia)}/dia`}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

@@ -67,15 +67,32 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function PopulacaoPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
-  const [responsavel, setResponsavel] = useState(""); // Novo
-  const [registro, setRegistro] = useState(""); // Novo
+  const [responsavel, setResponsavel] = useState("");
+  const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS
   const [entrelinha, setEntrelinha] = useState<number | string>("");
@@ -84,6 +101,24 @@ export default function PopulacaoPage() {
 
   // FORMATAÇÃO NÚMEROS
   const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(n);
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setEntrelinha(i.entrelinha || "");
+          setSementesMetro(i.sementesMetro || "");
+          setGerminacao(i.germinacao || 95);
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -114,6 +149,49 @@ export default function PopulacaoPage() {
     };
   }, [entrelinha, sementesMetro, germinacao]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          entrelinha, sementesMetro, germinacao
+        },
+        results: {
+          metrosLineares: resultados.metrosLineares,
+          sementesHa: resultados.sementesHa,
+          plantasHa: resultados.plantasHa,
+          perda: resultados.perda
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `População (Stand) - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'populacao-plantas',
+          `População (Stand) - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/populacao-plantas?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const shareText = `🌱 *Cálculo de Stand*\n\n📏 *Espaçamento:* ${entrelinha} cm\n🎯 *Regulagem:* ${sementesMetro} sem/m\n\n✅ *População Final Estimada:*\n${fmt(resultados.plantasHa)} plantas/ha\n\n⚠️ *Perda Potencial:* ${fmt(resultados.perda)} sementes/ha`;
 
   return (
@@ -126,11 +204,13 @@ export default function PopulacaoPage() {
       setProdutor={setProdutor}
       talhao={talhao}
       setTalhao={setTalhao}
-      responsavelTecnico={responsavel} // Novo
-      setResponsavelTecnico={setResponsavel} // Novo
+      responsavelTecnico={responsavel}
+      setResponsavelTecnico={setResponsavel}
       registroProfissional={registro} // Novo
       setRegistroProfissional={setRegistro} // Novo
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

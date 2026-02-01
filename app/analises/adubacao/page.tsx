@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Leaf,
   Package,
@@ -125,7 +125,7 @@ const BalanceBar = ({ label, applied, target, unit = "kg", isBase }: BalanceBarP
         <div
           style={{ width: `${visualWidth}%` }}
           className={`h-full rounded-full transition-all duration-700 ease-out relative ${isBalanced ? 'bg-emerald-500' :
-              isDeficit ? 'bg-amber-400' : 'bg-blue-500'
+            isDeficit ? 'bg-amber-400' : 'bg-blue-500'
             }`}
         >
           <div className="absolute top-0 right-0 bottom-0 w-full bg-gradient-to-l from-black/10 to-transparent"></div>
@@ -145,15 +145,32 @@ const BalanceBar = ({ label, applied, target, unit = "kg", isBase }: BalanceBarP
   );
 };
 
+import { useSearchParams, useRouter } from "next/navigation";
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+
+// ... (other imports)
+
 export default function AdubacaoNPKPage() {
-  const { user } = useAuth();
+  const { user } = useAuth(); // Ensure user is correctly typed if possible, but for now we assume it has uid
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO (Corrigido)
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+      // Se tivesse campo de registro no user, seria: setRegistro(user.registro || "")
+    }
+  }, [user, reportId]);
 
   const [metaN, setMetaN] = useState<number | string>("");
   const [metaP, setMetaP] = useState<number | string>("");
@@ -165,8 +182,31 @@ export default function AdubacaoNPKPage() {
 
   const [baseCalculo, setBaseCalculo] = useState<"N" | "P" | "K">("P");
 
+  // LOAD DATA IF EDITING
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setMetaN(i.metaN || "");
+          setMetaP(i.metaP || "");
+          setMetaK(i.metaK || "");
+          setFormN(i.formN || "");
+          setFormP(i.formP || "");
+          setFormK(i.formK || "");
+          setBaseCalculo(i.baseCalculo || "P");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
+
   // CÁLCULOS
   const resultados = useMemo(() => {
+    // ... (existing calculation logic)
     const mN = Number(metaN) || 0;
     const mP = Number(metaP) || 0;
     const mK = Number(metaK) || 0;
@@ -194,6 +234,54 @@ export default function AdubacaoNPKPage() {
     };
   }, [metaN, metaP, metaK, formN, formP, formK, baseCalculo]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      // 1. Salvar Cliente (se houver nome)
+      if (produtor) {
+        await saveClient(user.uid, produtor, talhao);
+      }
+
+      // 2. Dados do relatório
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          metaN, metaP, metaK,
+          formN, formP, formK,
+          baseCalculo
+        },
+        results: resultados
+      };
+
+      if (reportId) {
+        // UPDATE
+        await updateReport(reportId, {
+          title: `Adubação NPK - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        // CREATE
+        const newId = await saveReport(
+          user.uid,
+          'adubacao',
+          `Adubação NPK - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/adubacao?id=${newId}`);
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000); // Reset feedback after 3s
+
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório. Tente novamente.");
+    }
+  };
+
   const shareText = `🚜 *Planejamento NPK*\n\n🎯 *Adubo:* ${resultados.formula}\n⚖️ *Dose Calculada:* ${resultados.doseHa.toFixed(0)} kg/ha\n📦 *Sacos (50kg):* ${resultados.sacosHa.toFixed(1)} sc/ha\n\n*Balanço Nutricional:*\nN: ${resultados.aplicado.N.toFixed(1)} kg (Meta: ${resultados.meta.N})\nP: ${resultados.aplicado.P.toFixed(1)} kg (Meta: ${resultados.meta.P})\nK: ${resultados.aplicado.K.toFixed(1)} kg (Meta: ${resultados.meta.K})`;
 
   return (
@@ -211,6 +299,8 @@ export default function AdubacaoNPKPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 
@@ -295,8 +385,8 @@ export default function AdubacaoNPKPage() {
                     key={item.id}
                     onClick={() => setBaseCalculo(item.id as any)}
                     className={`relative py-2.5 px-3 rounded-lg border text-left transition-all group ${baseCalculo === item.id
-                        ? 'bg-white border-emerald-500 shadow-md ring-1 ring-emerald-500'
-                        : 'bg-transparent border-transparent hover:bg-white hover:border-slate-200'
+                      ? 'bg-white border-emerald-500 shadow-md ring-1 ring-emerald-500'
+                      : 'bg-transparent border-transparent hover:bg-white hover:border-slate-200'
                       }`}
                   >
                     <span className={`block text-xs font-black uppercase tracking-wider mb-0.5 ${baseCalculo === item.id ? 'text-emerald-600' : 'text-slate-400'}`}>

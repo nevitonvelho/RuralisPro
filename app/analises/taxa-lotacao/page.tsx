@@ -68,16 +68,33 @@ const InputGroup = ({ label, icon, value, onChange, placeholder = "0", step = "0
   </div>
 );
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+
+// ... (imports remain)
+
 export default function TaxaLotacaoPage() {
   const [mounted, setMounted] = useState(false);
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
+
   const [qtdAnimais, setQtdAnimais] = useState<number | string>("");
   const [pesoMedio, setPesoMedio] = useState<number | string>("");
   const [area, setArea] = useState<number | string>("");
@@ -87,6 +104,25 @@ export default function TaxaLotacaoPage() {
 
   // Garantir hidratação segura
   useEffect(() => { setMounted(true); }, []);
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setQtdAnimais(i.qtdAnimais || "");
+          setPesoMedio(i.pesoMedio || "");
+          setArea(i.area || "");
+          setCapacidadeSuporte(i.capacidadeSuporte || "1.0");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   const resultados = useMemo(() => {
     const qtd = Number(qtdAnimais) || 0;
@@ -120,6 +156,50 @@ export default function TaxaLotacaoPage() {
     };
   }, [qtdAnimais, pesoMedio, area, capacidadeSuporte]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          qtdAnimais, pesoMedio, area, capacidadeSuporte
+        },
+        results: {
+          uaTotal: resultados.uaTotal,
+          uaHa: resultados.uaHa,
+          kgHa: resultados.kgHa,
+          diff: resultados.diff,
+          status: resultados.status
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Taxa de Lotação - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'taxa-lotacao',
+          `Taxa de Lotação - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/taxa-lotacao?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   if (!mounted) return null;
 
   const fmt = (n: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(n);
@@ -139,6 +219,8 @@ export default function TaxaLotacaoPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={`🐄 Lotação Atual: ${fmt(resultados.uaHa)} UA/ha`}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

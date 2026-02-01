@@ -126,20 +126,55 @@ const IngredientRow = ({ label, icon, color, data, onChange }: any) => {
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function FormulacaoRacaoPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INGREDIENTES (Estado Inicial com Médias Nacionais)
   const [ing1, setIng1] = useState({ kg: "70", preco: "1.00", pb: "9", ndt: "82" }); // Energético (Milho)
   const [ing2, setIng2] = useState({ kg: "25", preco: "2.50", pb: "46", ndt: "80" }); // Proteico (Soja)
   const [ing3, setIng3] = useState({ kg: "5", preco: "5.00", pb: "0", ndt: "0" }); // Núcleo/Mineral
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setIng1(i.ing1 || { kg: "70", preco: "1.00", pb: "9", ndt: "82" });
+          setIng2(i.ing2 || { kg: "25", preco: "2.50", pb: "46", ndt: "80" });
+          setIng3(i.ing3 || { kg: "5", preco: "5.00", pb: "0", ndt: "0" });
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -156,6 +191,8 @@ export default function FormulacaoRacaoPage() {
     const i3 = parse(ing3);
 
     const pesoTotal = i1.kg + i2.kg + i3.kg;
+
+    // ... (logic remains)
 
     // Evita divisão por zero e retorna objeto vazio seguro
     if (pesoTotal === 0) {
@@ -206,6 +243,50 @@ export default function FormulacaoRacaoPage() {
     };
   }, [ing1, ing2, ing3]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          ing1, ing2, ing3
+        },
+        results: {
+          pbFinal: resultados.pbFinal,
+          ndtFinal: resultados.ndtFinal,
+          custoKg: resultados.custoKg,
+          custoTon: resultados.custoTon,
+          pesoTotal: resultados.pesoTotal
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Ração - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'formulacao-racoes',
+          `Ração - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/formulacao-racoes?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // FORMATAÇÃO
   const fmtMoeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
   const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v);
@@ -227,6 +308,8 @@ export default function FormulacaoRacaoPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

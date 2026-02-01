@@ -81,15 +81,32 @@ const TechnicalTable = ({ title, rows }: { title: string, rows: any[] }) => {
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function CalagemPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS GERAIS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // ESTADOS ESPECÍFICOS
   const [ctc, setCtc] = useState<number | string>("");
@@ -98,6 +115,27 @@ export default function CalagemPage() {
   const [vDesejado, setVDesejado] = useState<number | string>(60);
   const [prnt, setPrnt] = useState<number | string>(80);
   const [fatorGesso, setFatorGesso] = useState<number | string>(50);
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setCtc(i.ctc || "");
+          setVAtual(i.vAtual || "");
+          setArgila(i.argila || "");
+          setVDesejado(i.vDesejado || 60);
+          setPrnt(i.prnt || 80);
+          setFatorGesso(i.fatorGesso || 50);
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // LÓGICA
   const resultados = useMemo(() => {
@@ -122,6 +160,44 @@ export default function CalagemPage() {
     };
   }, [ctc, vAtual, vDesejado, prnt, argila, fatorGesso]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          ctc, vAtual, argila, vDesejado, prnt, fatorGesso
+        },
+        results: resultados
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Calagem - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'calagem',
+          `Calagem - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/calagem?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   // TEXTO WHATSAPP
   const shareText = `🧪 *Relatório de Fertilidade:*\n\n✅ *Necessidade de Calagem:* ${resultados.calagem.toFixed(2)} ton/ha\n✅ *Necessidade de Gessagem:* ${resultados.gessagem.toFixed(2)} ton/ha`;
 
@@ -140,6 +216,8 @@ export default function CalagemPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 

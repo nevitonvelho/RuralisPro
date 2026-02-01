@@ -91,15 +91,32 @@ const TechnicalTable = ({ title, rows }: { title: string; rows: TechnicalTableRo
   );
 };
 
+import { saveReport, saveClient, getReportById, updateReport } from "@/services/firestore";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+// ... (imports remain)
+
 export default function DeplecaoAguaPage() {
   const { user } = useAuth();
   const isAuthenticated = !!user;
+  const searchParams = useSearchParams();
+  const reportId = searchParams.get('id');
+  const router = useRouter();
 
   // ESTADOS
   const [produtor, setProdutor] = useState("");
   const [talhao, setTalhao] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [registro, setRegistro] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  // AUTO-FILL TÉCNICO
+  useEffect(() => {
+    if (user && !reportId && !responsavel) {
+      setResponsavel(user.displayName || "");
+    }
+  }, [user, reportId]);
 
   // INPUTS - FÍSICA DO SOLO
   const [cc, setCc] = useState<number | string>(""); // Capacidade de Campo (%)
@@ -109,6 +126,26 @@ export default function DeplecaoAguaPage() {
   // INPUTS - SITUAÇÃO ATUAL
   const [profundidade, setProfundidade] = useState<number | string>(20); // cm (Z)
   const [umidadeAtual, setUmidadeAtual] = useState<number | string>(""); // % atual
+
+  // LOAD REPORT DATA
+  useEffect(() => {
+    if (reportId && user?.uid) {
+      getReportById(reportId).then(report => {
+        if (report && report.data?.inputs) {
+          const i = report.data.inputs;
+          setProdutor(i.produtor || "");
+          setTalhao(i.talhao || "");
+          setResponsavel(i.responsavel || "");
+          setRegistro(i.registro || "");
+          setCc(i.cc || "");
+          setPmp(i.pmp || "");
+          setDensidade(i.densidade || "1.2");
+          setProfundidade(i.profundidade || 20);
+          setUmidadeAtual(i.umidadeAtual || "");
+        }
+      }).catch(console.error);
+    }
+  }, [reportId, user]);
 
   // CÁLCULOS
   const resultados = useMemo(() => {
@@ -143,6 +180,49 @@ export default function DeplecaoAguaPage() {
     };
   }, [cc, pmp, densidade, profundidade, umidadeAtual]);
 
+  const handleSave = async () => {
+    if (!user) return;
+
+    try {
+      if (produtor) await saveClient(user.uid, produtor, talhao);
+
+      const reportData = {
+        inputs: {
+          produtor, talhao, responsavel, registro,
+          cc, pmp, densidade, profundidade, umidadeAtual
+        },
+        results: {
+          cta: resultados.cta,
+          atualMm: resultados.atualMm,
+          irrigacao: resultados.irrigacao,
+          pctDisponivel: resultados.pctDisponivel
+        }
+      };
+
+      if (reportId) {
+        await updateReport(reportId, {
+          title: `Irrigação - ${produtor || 'Sem Cliente'}`,
+          data: reportData,
+          clientName: produtor
+        });
+      } else {
+        const newId = await saveReport(
+          user.uid,
+          'deplecao-agua-solo',
+          `Irrigação - ${produtor || 'Sem Cliente'}`,
+          reportData,
+          produtor
+        );
+        router.replace(`/analises/deplecao-agua-solo?id=${newId}`);
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Erro ao salvar relatório.");
+    }
+  };
+
   const shareText = `💧 *Manejo de Irrigação*\n\n📉 *Umidade Atual:* ${umidadeAtual}%\n🚿 *Reposição Necessária:* ${resultados.irrigacao.toFixed(1)} mm\n\n📊 *Status do Solo:*\nO solo está com ${resultados.pctDisponivel.toFixed(0)}% da sua capacidade de água disponível.`;
 
   // Define cores e status baseado na disponibilidade
@@ -169,6 +249,8 @@ export default function DeplecaoAguaPage() {
       registroProfissional={registro}
       setRegistroProfissional={setRegistro}
       shareText={shareText}
+      onSave={handleSave}
+      saved={saved}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 print:block">
 
