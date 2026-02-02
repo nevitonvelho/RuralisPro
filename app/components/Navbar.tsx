@@ -22,14 +22,19 @@ import {
   Home,
   FileText,
   CreditCard,
-  ChevronRight
+  ChevronRight,
+  Sprout,
+  Crown
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { auth } from "@/lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 
+import { useSearchParams } from "next/navigation";
+
 export default function Navbar() {
-  const { user } = useAuth();
+  const { user, plan } = useAuth();
+  const searchParams = useSearchParams();
   const [isLoginTab, setIsLoginTab] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -68,6 +73,13 @@ export default function Navbar() {
       document.body.style.overflow = 'unset';
     }
   }, [isMobileMenuOpen]);
+
+  // Handle URL query param for login
+  useEffect(() => {
+    if (searchParams.get('login') === 'true' && !user) {
+      openAuthModal();
+    }
+  }, [searchParams, user]);
 
   const openAuthModal = () => {
     setIsMobileMenuOpen(false);
@@ -132,23 +144,37 @@ export default function Navbar() {
           </Link>
 
           {/* 2. DESKTOP NAV */}
+          {/* 2. DESKTOP NAV */}
           <nav className="hidden md:flex items-center gap-1 bg-slate-100/50 p-1.5 rounded-xl border border-white/50 shadow-inner">
-            <NavLink href="/">Início</NavLink>
-            <NavLink href="/analises">Análises</NavLink>
-            <NavLink href="/planos">Planos</NavLink>
-          </nav>
+            {user ? (
+              // NAVEGAÇÃO LOGADO
+              <>
+                <NavLink href="/dashboard" icon={LayoutGrid}>Dashboard</NavLink>
+                <div className="w-[1px] h-4 bg-slate-300 mx-1"></div>
+                <NavLink href="/clientes" icon={User}>Clientes</NavLink>
+                <NavLink href="/tecnicos" icon={CheckSquare}>Técnicos</NavLink>
 
-          {/* 3. BUSCA PREMIUM (Desktop) */}
-          <div className="hidden md:block relative w-full max-w-xs group">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="text-slate-400 group-focus-within:text-emerald-600 transition-colors" size={16} />
-            </div>
-            <input
-              type="text"
-              placeholder="O que você procura hoje?"
-              className="w-full bg-slate-100 border-none rounded-full py-2.5 pl-10 pr-4 text-sm text-slate-700 font-medium focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all placeholder:text-slate-400"
-            />
-          </div>
+                {plan === 'free' && (
+                  <a
+                    href="https://pay.kiwify.com.br/YfRpxeU"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-black uppercase tracking-wide rounded-lg hover:shadow-lg hover:shadow-orange-500/30 transition-all transform hover:-translate-y-0.5"
+                  >
+                    <Crown size={14} fill="currentColor" />
+                    Assinar Pro
+                  </a>
+                )}
+              </>
+            ) : (
+              // NAVEGAÇÃO PÚBLICA
+              <>
+                <NavLink href="/">Início</NavLink>
+                <NavLink href="/#analises">Análises</NavLink>
+                <NavLink href="/#planos">Planos</NavLink>
+              </>
+            )}
+          </nav>
 
           {/* 4. ACTIONS & PROFILE */}
           <div className="flex items-center gap-3">
@@ -234,16 +260,6 @@ export default function Navbar() {
 
           <div className="flex-1 overflow-y-auto p-6 space-y-8">
 
-            {/* 1. Busca Mobile */}
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Buscar ferramenta..."
-                className="w-full bg-slate-100 border-none rounded-xl py-3 pl-12 pr-4 text-sm font-medium focus:ring-2 focus:ring-emerald-500/20 focus:bg-white transition-all"
-              />
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            </div>
-
             {/* 2. Links Principais */}
             <div className="space-y-2">
               <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-2">Navegação</p>
@@ -252,6 +268,9 @@ export default function Navbar() {
               </Link>
               <Link href="/analises" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition-colors">
                 <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg"><FileText size={20} /></div> Análises
+              </Link>
+              <Link href="/sobre" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition-colors">
+                <div className="bg-slate-100 text-slate-600 p-2 rounded-lg"><Sprout size={20} /></div> Sobre
               </Link>
               <Link href="/planos" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 text-slate-700 font-bold transition-colors">
                 <div className="bg-purple-100 text-purple-600 p-2 rounded-lg"><Sparkles size={20} /></div> Planos

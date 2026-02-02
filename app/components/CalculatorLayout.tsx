@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // Interface para o usuário do contexto
 interface AuthUser {
@@ -44,9 +45,12 @@ const WhatsAppIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-import { getClients, Client } from "@/services/firestore";
+import { getClients, Client, getCompanySettings, CompanySettings, getTechnicians, Technician } from "@/services/firestore";
 import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, Star } from "lucide-react";
+import { usePathname } from "next/navigation";
+
+const FREE_TOOLS = ['calagem', 'adubacao', 'gmd', 'taxa-lotacao', 'consumo-combustivel'];
 
 export function CalculatorLayout({
   produtor,
@@ -67,18 +71,49 @@ export function CalculatorLayout({
   saved
 }: CalculatorLayoutProps) {
 
-  const { user } = useAuth() as { user: AuthUser & { uid: string } | null };
+  const { user, loading, plan } = useAuth();
   const isAuthenticated = !!user;
-  const dataRelatorio = new Date().toLocaleDateString('pt-BR');
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentSlug = pathname?.split('/').pop() || '';
+
+  const [dataRelatorio, setDataRelatorio] = useState("");
+  const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null);
+  const [isRestricted, setIsRestricted] = useState(false);
+
+  useEffect(() => {
+    setDataRelatorio(new Date().toLocaleDateString('pt-BR'));
+  }, []);
 
   const [clients, setClients] = useState<Client[]>([]);
+  const [technicians, setTechnicians] = useState<Technician[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showTechSuggestions, setShowTechSuggestions] = useState(false);
 
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.push('/?login=true');
+    }
+  }, [loading, isAuthenticated, router]);
+
+  // Fetch Data
   useEffect(() => {
     if (user?.uid) {
       getClients(user.uid).then(setClients).catch(console.error);
+      getTechnicians(user.uid).then(setTechnicians).catch(console.error);
+      getCompanySettings(user.uid).then(setCompanySettings).catch(console.error);
     }
   }, [user]);
+
+  // Plan Restriction Check
+  useEffect(() => {
+    if (!loading && plan === 'free' && !FREE_TOOLS.includes(currentSlug)) {
+      setIsRestricted(true);
+    } else {
+      setIsRestricted(false);
+    }
+  }, [loading, plan, currentSlug]);
 
   const handleShare = () => {
     const header = `🌱 *Ruralis PRO* | Relatório Técnico\n📂 *Ferramenta:* ${title}\n👤 *Produtor:* ${produtor || 'Não informado'}\n📍 *Talhão:* ${talhao || 'Geral'}\n📅 *Data:* ${dataRelatorio}\n━━━━━━━━━━━━━━━━━━\n\n`;
@@ -98,11 +133,42 @@ export function CalculatorLayout({
     }
   };
 
-  // Autocomplete Logic
+  // Client Autocomplete Logic
   const filteredClients = clients.filter(c =>
     c.name.toLowerCase().includes(produtor.toLowerCase()) &&
     c.name !== produtor
   );
+
+  // Technician Autocomplete Logic
+  const filteredTechnicians = technicians.filter(t =>
+    responsavelTecnico && t.name.toLowerCase().includes(responsavelTecnico.toLowerCase()) &&
+    t.name !== responsavelTecnico
+  );
+
+  if (isRestricted) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center bg-slate-50">
+        <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-lg border border-slate-200">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Lock size={32} />
+          </div>
+          <h2 className="text-3xl font-black text-slate-900 mb-4">Funcionalidade RuraPro</h2>
+          <p className="text-slate-500 mb-8 text-lg">
+            Esta ferramenta <strong>({title})</strong> é exclusiva para assinantes do plano <strong>RuraPro</strong> ou superior.
+            Atualize seu plano para desbloquear todas as 25+ ferramentas.
+          </p>
+          <div className="space-y-3">
+            <Link href="/#planos" className="block w-full py-4 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-500/30">
+              Upgrade Agora
+            </Link>
+            <Link href="/dashboard" className="block w-full py-4 text-slate-500 font-bold hover:text-slate-700">
+              Voltar ao Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -114,24 +180,46 @@ export function CalculatorLayout({
         }
 
         @media print {
-          @page { margin: 0.8cm; size: A4; }
+          @page { margin: 0; size: A4; }
+          body { margin: 0; padding: 0.5cm; }
           #print-area { width: 100%; margin: 0; padding: 0; background: white; color: black; }
           input { border: none !important; padding: 0 !important; font-weight: bold !important; background: transparent !important; color: black !important; box-shadow: none !important; }
           .shadow-xl, .shadow-lg, .shadow-md, .shadow-sm { box-shadow: none !important; }
         }
       `}} />
 
-      <div id="print-area" className="max-w-6xl mx-auto pt-8 pb-20 print:pb-0 px-4 md:px-8">
+      <div id="print-area" className="max-w-6xl mx-auto pt-8 pb-20 print:pt-0 print:pb-0 px-4 md:px-8">
 
         {/* === CABEÇALHO IMPRESSÃO === */}
         <div className="hidden print:block mb-6 border-b border-slate-300 pb-4">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-5">
-              <img src="/logo.png" alt="Logo" className="h-12 w-auto object-contain" />
+              {/* LOGO DINÂMICO */}
+              {companySettings?.logoUrl ? (
+                <img src={companySettings.logoUrl} alt="Logo Empresa" className="h-16 w-auto object-contain max-w-[150px]" />
+              ) : (
+                <img src="/logo.png" alt="Ruralis PRO" className="h-12 w-auto object-contain" />
+              )}
+
               <div className="h-10 w-[1px] bg-slate-300"></div>
+
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Ferramenta</p>
-                <p className="text-xl font-black uppercase text-black">{category}</p>
+                {/* DADOS DA EMPRESA */}
+                {companySettings ? (
+                  <>
+                    <p className="text-xl font-black uppercase text-black">{companySettings.companyName}</p>
+                    <div className="text-[10px] text-slate-600 font-medium leading-tight">
+                      {companySettings.cnpjOrCpf && <p>CNPJ/CPF: {companySettings.cnpjOrCpf}</p>}
+                      {companySettings.phone && <p>Tel: {companySettings.phone}</p>}
+                      {companySettings.address && <p>{companySettings.address}</p>}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Ferramenta</p>
+                    <p className="text-xl font-black uppercase text-black">{category}</p>
+                  </>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -142,7 +230,7 @@ export function CalculatorLayout({
 
           <div className="flex border border-slate-300 rounded overflow-hidden">
             <div className="flex-1 p-2 border-r border-slate-300">
-              <span className="text-[10px] font-bold uppercase text-slate-500 block">Produtor</span>
+              <span className="text-[10px] font-bold uppercase text-slate-500 block">Produtor / Cliente</span>
               <span className="text-sm font-bold text-black truncate block">{produtor || '—'}</span>
             </div>
             <div className="flex-1 p-2 border-r border-slate-300">
@@ -151,7 +239,7 @@ export function CalculatorLayout({
             </div>
             <div className="flex-1 p-2">
               <span className="text-[10px] font-bold uppercase text-slate-500 block">Responsável Técnico</span>
-              <span className="text-sm font-bold text-black truncate block">{responsavelTecnico || user?.name || '_______________________'}</span>
+              <span className="text-sm font-bold text-black truncate block">{responsavelTecnico || user?.displayName || '_______________________'}</span>
               {(!!registroProfissional) && <span className="text-[9px] font-bold text-slate-500 uppercase block">{registroProfissional}</span>}
             </div>
           </div>
@@ -240,7 +328,7 @@ export function CalculatorLayout({
                   placeholder="Nome do cliente..."
                   className="w-full text-slate-900 font-bold outline-none bg-transparent"
                 />
-                {/* Autocomplete Dropdown */}
+                {/* Autocomplete Dropdown - Clients */}
                 {showSuggestions && filteredClients.length > 0 && produtor.length > 0 && (
                   <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-2 z-50 max-h-48 overflow-y-auto">
                     {filteredClients.map(client => (
@@ -279,17 +367,40 @@ export function CalculatorLayout({
 
             {/* NOVOS CAMPOS: RESPONSÁVEL TÉCNICO - SÓ APARECEM SE A FUNÇÃO SET EXISTIR */}
             {setResponsavelTecnico && (
-              <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4">
+              <div className="bg-white p-4 rounded-xl border border-slate-200 flex items-center gap-4 relative">
                 <div className="bg-purple-100 p-2.5 rounded-lg text-purple-700"><User size={20} /></div>
-                <div className="flex-1">
+                <div className="flex-1 relative">
                   <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Resp. Técnico (Opcional)</label>
                   <input
                     type="text"
                     value={responsavelTecnico || ""}
-                    onChange={(e) => setResponsavelTecnico(e.target.value)}
-                    placeholder={user?.name || "Nome do profissional..."}
+                    onChange={(e) => {
+                      setResponsavelTecnico(e.target.value);
+                      setShowTechSuggestions(true);
+                    }}
+                    onFocus={() => setShowTechSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowTechSuggestions(false), 200)}
+                    placeholder={user?.displayName || "Nome do profissional..."}
                     className="w-full text-slate-900 font-bold outline-none bg-transparent"
                   />
+                  {/* Autocomplete Dropdown - Technicians */}
+                  {showTechSuggestions && filteredTechnicians.length > 0 && responsavelTecnico && responsavelTecnico.length > 0 && (
+                    <div className="absolute top-full left-0 w-full bg-white border border-slate-200 rounded-lg shadow-xl mt-2 z-50 max-h-48 overflow-y-auto">
+                      {filteredTechnicians.map(tech => (
+                        <button
+                          key={tech.id}
+                          onClick={() => {
+                            setResponsavelTecnico(tech.name);
+                            if (tech.crea && setRegistroProfissional) setRegistroProfissional(tech.crea);
+                            setShowTechSuggestions(false);
+                          }}
+                          className="w-full text-left px-4 py-2 hover:bg-slate-50 text-sm font-medium text-slate-700 border-b border-slate-50 last:border-0"
+                        >
+                          {tech.name} {tech.crea && <span className="text-xs text-slate-400">({tech.crea})</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <PenLine size={16} className="text-slate-300" />
               </div>
@@ -327,12 +438,13 @@ export function CalculatorLayout({
               <p className="text-xs text-slate-500">Assinatura</p>
             </div>
             <div className="text-center pt-4 border-t border-black">
-              <p className="text-sm font-bold uppercase text-black">{responsavelTecnico || user?.name || 'Responsável Técnico'}</p>
+              <p className="text-sm font-bold uppercase text-black">{responsavelTecnico || user?.displayName || 'Responsável Técnico'}</p>
               <p className="text-xs text-slate-500">Assinatura / Registro {registroProfissional ? `(${registroProfissional})` : ''}</p>
             </div>
           </div>
           <p className="text-[9px] text-slate-400 text-center uppercase tracking-widest">
             Gerado por Ruralis PRO - A validação técnica presencial é obrigatória.
+            {companySettings?.website && <span className="block mt-1 font-bold text-slate-600">{companySettings.website}</span>}
           </p>
         </div>
       </div>

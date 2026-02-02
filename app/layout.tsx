@@ -29,12 +29,12 @@ export default function RootLayout({
 
       {/* 3. Aplicamos roboto.className no body. 
           Isso aplica a fonte no site todo automaticamente. */}
-      <body className={`${roboto.className} bg-slate-50 text-slate-900 antialiased`}>
+      <body className={`${roboto.className} bg-slate-50 text-slate-900 antialiased`} suppressHydrationWarning={true}>
         <Providers>
           <div className="no-print">
             <Navbar />
           </div>
-          <main className="min-h-[calc(100vh-64px)] pt-20">
+          <main className="min-h-[calc(100vh-64px)] pt-20 print:pt-0 print:min-h-0">
             {children}
           </main>
           <footer className="bg-white border-t border-slate-200 py-10">

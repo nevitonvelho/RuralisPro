@@ -202,3 +202,89 @@ export const updateReport = async (reportId: string, data: any) => {
         throw error;
     }
 };
+
+// --- TÉCNICOS ---
+
+export interface Technician {
+    id?: string;
+    userId: string;
+    name: string;
+    crea?: string;
+    email?: string;
+    createdAt: any;
+}
+
+export const saveTechnician = async (userId: string, name: string, crea?: string, email?: string) => {
+    try {
+        const docRef = await addDoc(collection(db, 'technicians'), {
+            userId,
+            name,
+            crea: crea || '',
+            email: email || '',
+            createdAt: serverTimestamp()
+        });
+        return docRef.id;
+    } catch (error) {
+        console.error("Erro ao salvar técnico:", error);
+        throw error;
+    }
+};
+
+export const getTechnicians = async (userId: string) => {
+    try {
+        const q = query(
+            collection(db, 'technicians'),
+            where('userId', '==', userId)
+        );
+        const snapshot = await getDocs(q);
+        const techs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Technician));
+        return techs.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (error) {
+        console.error("Erro ao buscar técnicos:", error);
+        throw error;
+    }
+};
+
+export const deleteTechnician = async (techId: string) => {
+    try {
+        await deleteDoc(doc(db, 'technicians', techId));
+    } catch (error) {
+        console.error("Erro ao deletar técnico:", error);
+        throw error;
+    }
+};
+
+// --- CONFIGURAÇÕES DA EMPRESA ---
+
+export interface CompanySettings {
+    companyName: string;
+    cnpjOrCpf: string;
+    address: string;
+    phone: string;
+    website?: string;
+    logoUrl?: string; // Opcional, para futuro
+}
+
+export const saveCompanySettings = async (userId: string, data: CompanySettings) => {
+    try {
+        const docRef = doc(db, 'users', userId, 'settings', 'company');
+        await setDoc(docRef, data, { merge: true });
+    } catch (error) {
+        console.error("Erro ao salvar configurações:", error);
+        throw error;
+    }
+};
+
+export const getCompanySettings = async (userId: string) => {
+    try {
+        const docRef = doc(db, 'users', userId, 'settings', 'company');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+            return docSnap.data() as CompanySettings;
+        }
+        return null;
+    } catch (error) {
+        console.error("Erro ao buscar configurações:", error);
+        throw error;
+    }
+};
